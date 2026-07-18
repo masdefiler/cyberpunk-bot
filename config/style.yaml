@@ -1,0 +1,47 @@
+# ============================================================================
+#  GÖRSEL KİMLİK  —  Hesabın tutarlılığının kalbi.
+#  style_suffix her görsel prompt'unun SONUNA otomatik eklenir (bkz. ideate.py).
+#  Bu dosyayı değiştirirsen hesabın bütün estetiği değişir; dikkatli oyna.
+# ============================================================================
+
+# En-boy oranı (Instagram dikey feed için ideal): 4:5
+aspect_ratio: "4:5"
+width: 1080
+height: 1350
+
+# --- Ortak stil eki: HER prompt'un sonuna eklenir --------------------------
+# Renk paleti, ışık, lens, film dokusu burada sabitlenir → kimlik sabit kalır.
+style_suffix: >-
+  cinematic cyberpunk aesthetic, neon-drenched atmosphere, teal-and-magenta color
+  grade with warm amber highlights, deep blacks, volumetric fog, wet reflective
+  streets, anamorphic lens flares, shallow depth of field, subtle 35mm film grain,
+  high dynamic range, moody chiaroscuro lighting, dense atmospheric haze,
+  intricate hyper-detail, retro-futuristic, dystopian mood, ultra-detailed, 8k
+
+# --- Renk paleti (post-processing + referans) ------------------------------
+palette:
+  cyan: "#0af0ff"       # ana neon
+  magenta: "#ff2bd6"    # ikincil neon
+  amber: "#ffb000"      # sıcak vurgu
+  ink: "#05060a"        # neredeyse siyah zemin
+
+# --- Ortak negatif prompt: her üretimde kullanılır -------------------------
+negative_prompt: >-
+  text, letters, watermark, signature, logo, extra fingers, deformed hands,
+  distorted face, mutated anatomy, low quality, blurry, jpeg artifacts,
+  oversaturated, cartoon, anime, childish, meme, bright daylight, flat lighting,
+  washed out, cluttered, ugly, disfigured, duplicate
+
+# --- Hafif post-processing (Pillow) ----------------------------------------
+post:
+  contrast: 1.08          # 1.0 = değişiklik yok
+  saturation: 1.05
+  grain: 0.04             # 0-1, çok hafif film greni
+  vignette: 0.18          # 0-1, köşe kararması
+  watermark:
+    enabled: true
+    text: "KRONOSPUNK"    # hesap adı (@kronospunk)
+    opacity: 0.32         # 0-1
+    size: 26              # px
+    margin: 34            # köşeden uzaklık (px)
+    position: "bottom-right"

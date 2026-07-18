@@ -1,0 +1,56 @@
+name: Gönderi Yayınla
+
+# Günde iki kez otomatik + istenildiğinde manuel.
+# Cron UTC'dir. Vancouver (yaz, PDT=UTC-7) 09:00 → 16:00 UTC, 19:00 → 02:00 UTC.
+# NOT: Actions cron DST bilmez; kışın (PST) yerel saatler 1 saat kayar.
+on:
+  schedule:
+    - cron: "0 16 * * *"   # ~09:00 Vancouver
+    - cron: "0 2 * * *"    # ~19:00 Vancouver (bir önceki günün akşamı)
+  workflow_dispatch:
+    inputs:
+      count:
+        description: "Üretilecek gönderi sayısı"
+        required: false
+        default: "1"
+
+permissions:
+  contents: write          # output/ görsellerini commit&push edebilmek için
+
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Bağımlılıkları kur
+        run: pip install -r requirements.txt
+
+      - name: Gönderi üret ve yayınla
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          IG_USER_ID: ${{ secrets.IG_USER_ID }}
+          IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+          PROVIDER: ${{ vars.PROVIDER }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          TOGETHER_API_KEY: ${{ secrets.TOGETHER_API_KEY }}
+          FAL_KEY: ${{ secrets.FAL_KEY }}
+          REPO_SLUG: ${{ github.repository }}
+        run: python -m src.pipeline --publish --count "${{ github.event.inputs.count || '1' }}"
+
+      - name: Durum veritabanını sakla
+        uses: actions/upload-artifact@v4
+        with:
+          name: state-db
+          path: state.db
+          if-no-files-found: ignore

@@ -1,0 +1,67 @@
+# ============================================================================
+#  ÇALIŞMA AYARLARI  —  paylaşım ritmi, sağlayıcı zinciri, hashtag havuzları.
+# ============================================================================
+
+posting:
+  daily_count: 1            # tek cron çalışmasında kaç gönderi üret (--count override eder)
+  max_per_24h: 45           # Instagram 24s/50 limitine güvenli tampon
+  hashtag_min: 15
+  hashtag_max: 25
+
+# GitHub Actions cron (UTC). Vancouver 09:00 & 19:00 PDT (yaz, UTC-7) karşılığı.
+# NOT: Actions cron DST bilmez; kışın (PST, UTC-8) Vancouver saati 08:00/18:00'e kayar.
+schedule_utc:
+  - "16:00"   # ~09:00 Vancouver (PDT)
+  - "02:00"   # ~19:00 Vancouver (PDT), UTC'de ertesi gün
+
+# --- Görsel üretim sağlayıcı zinciri (soldan sağa fallback) -----------------
+# İlki hata verirse sıradakine düşülür. Hepsi ücretsiz/anahtarsız veya ücretsiz kotalı.
+provider_chain: ["pollinations", "cloudflare", "together"]
+providers:
+  pollinations:
+    model: "flux"          # anahtarsız, ücretsiz
+  cloudflare:
+    model: "@cf/black-forest-labs/flux-1-schnell"   # Workers AI ücretsiz kota
+  together:
+    model: "black-forest-labs/FLUX.1-schnell-Free"  # ücretsiz katman
+  fal:
+    model: "fal-ai/flux/schnell"   # ücretli, en kaliteli — opsiyonel
+
+# --- Görselin barındırılacağı yer (Instagram public URL ister) --------------
+# github: output/ klasörüne commit + raw.githubusercontent.com URL'i (ücretsiz, varsayılan)
+# r2: Cloudflare R2 (S3 uyumlu) — büyük hacim için opsiyonel adapter
+host: "github"
+github_host:
+  # Actions içinde otomatik dolar; yerelde .env'den REPO_SLUG okunur.
+  branch: "main"
+  output_dir: "output"
+
+# --- Fikir üretimi (ideation) — ÜCRETSİZ zincir -----------------------------
+# Soldan sağa fallback. gemini (Google AI Studio ücretsiz katman) → pollinations
+# (anahtarsız) → template (offline). Hepsi $0. "claude" eklenirse ücretlidir.
+ideation:
+  chain: ["gemini", "pollinations", "template"]
+  dedup_hatirla: 50            # "bunları tekrarlama" diye verilecek son başlık sayısı
+  temperature: 1.0
+  gemini_model: "gemini-2.5-flash-lite"    # ücretsiz katman, hızlı
+  pollinations_model: "openai"             # anahtarsız metin ucu
+  anthropic_model: "claude-sonnet-4-6"     # yalnızca chain'e "claude" eklenirse
+  anthropic_max_tokens: 1024
+
+# --- Hashtag havuzları: her gönderide bunlardan KARIŞIK seçilir -------------
+hashtags:
+  core:
+    ["cyberpunk", "cyberpunkart", "cyberpunkaesthetic", "cyberpunkcity",
+     "dystopia", "dystopian", "neonnoir", "highdystopia"]
+  art:
+    ["scifiart", "conceptart", "digitalart", "aiart", "aiartcommunity",
+     "artificialintelligence", "generativeart", "midjourney", "digitalpainting"]
+  aesthetic:
+    ["neon", "neonlights", "synthwave", "retrofuturism", "vaporwave",
+     "futuristic", "future", "sciencefiction", "scifi", "blade_runner", "outrun"]
+  mood:
+    ["darkaesthetic", "moody", "cinematic", "atmospheric", "dystopiancore",
+     "nightcity", "rainynight", "megacity", "urbanfuture"]
+  theme:
+    ["alternatehistory", "speculativefiction", "worldbuilding", "solarpunk",
+     "postapocalyptic", "retrotech", "biopunk", "technoir"]

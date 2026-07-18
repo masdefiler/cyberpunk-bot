@@ -1,0 +1,10 @@
+anthropic>=0.40
+requests>=2.31
+Pillow>=10.2
+PyYAML>=6.0
+python-dotenv>=1.0
+# test
+pytest>=8.0
+pytest-mock>=3.12
+# opsiyonel: Cloudflare R2 barındırma adapteri kullanılacaksa
+# boto3>=1.34

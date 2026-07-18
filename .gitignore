@@ -1,0 +1,11 @@
+.env
+__pycache__/
+*.pyc
+.venv/
+venv/
+preview/
+*.db
+*.sqlite3
+.DS_Store
+.pytest_cache/
+# output/ IGNORE EDİLMEZ — görseller barındırma için commit edilir.
