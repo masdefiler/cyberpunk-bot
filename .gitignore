@@ -6,6 +6,8 @@ venv/
 preview/
 *.db
 *.sqlite3
+# state.db izlenir: sütun rotasyonu + dedup Actions çalışmaları arasında korunmalı
+!state.db
 .DS_Store
 .pytest_cache/
 # output/ IGNORE EDİLMEZ — görseller barındırma için commit edilir.

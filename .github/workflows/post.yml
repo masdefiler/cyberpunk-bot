@@ -49,9 +49,14 @@ jobs:
           REPO_SLUG: ${{ github.repository }}
         run: python -m src.pipeline --publish --count "${{ github.event.inputs.count || '1' }}"
 
-      - name: Durum veritabanını sakla
-        uses: actions/upload-artifact@v4
-        with:
-          name: state-db
-          path: state.db
-          if-no-files-found: ignore
+      - name: Durumu (state.db) kaydet — rotasyon ve dedup kalıcı olsun
+        if: always()
+        run: |
+          git config user.name "cyberpunk-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add -f state.db || true
+          if ! git diff --staged --quiet; then
+            git commit -m "chore: state.db güncelle (sütun rotasyonu + dedup)"
+            git pull --rebase origin main || true
+            git push origin HEAD:main
+          fi
