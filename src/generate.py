@@ -9,6 +9,7 @@ from __future__ import annotations
 import base64
 import io
 import random
+import time
 import urllib.parse
 from typing import Callable
 
@@ -24,6 +25,10 @@ HTTP_TIMEOUT = 120  # flux üretimi yavaş olabilir
 
 class GenerationError(RuntimeError):
     """Tüm sağlayıcılar başarısız olduğunda yükseltilir."""
+
+
+class MissingKey(GenerationError):
+    """Sağlayıcının anahtarı yok — tekrar denemek anlamsız, sıradakine geç."""
 
 
 # ---------------------------------------------------------------------------
@@ -64,7 +69,7 @@ def _cloudflare(prompt: str, negative: str, w: int, h: int) -> bytes:
     account = config.env("CLOUDFLARE_ACCOUNT_ID")
     token = config.env("CLOUDFLARE_API_TOKEN")
     if not (account and token):
-        raise GenerationError("cloudflare anahtarları yok")
+        raise MissingKey("cloudflare anahtarları yok")
     model = config.settings().get("providers", {}).get("cloudflare", {}).get(
         "model", "@cf/black-forest-labs/flux-1-schnell"
     )
@@ -87,7 +92,7 @@ def _together(prompt: str, negative: str, w: int, h: int) -> bytes:
     """Together FLUX.1-schnell-Free. b64_json döndürür."""
     key = config.env("TOGETHER_API_KEY")
     if not key:
-        raise GenerationError("together anahtarı yok")
+        raise MissingKey("together anahtarı yok")
     model = config.settings().get("providers", {}).get("together", {}).get(
         "model", "black-forest-labs/FLUX.1-schnell-Free"
     )
@@ -111,7 +116,7 @@ def _fal(prompt: str, negative: str, w: int, h: int) -> bytes:
     """fal.ai flux/schnell (ücretli, opsiyonel). URL döndürür."""
     key = config.env("FAL_KEY")
     if not key:
-        raise GenerationError("fal anahtarı yok")
+        raise MissingKey("fal anahtarı yok")
     r = requests.post(
         "https://fal.run/fal-ai/flux/schnell",
         headers={"Authorization": f"Key {key}"},
@@ -154,22 +159,35 @@ def generate(concept: dict, style: dict) -> tuple[bytes, str]:
     forced = config.env("PROVIDER")
     chain = [forced] if forced else list(settings.get("provider_chain", ["pollinations"]))
 
+    tries = int(settings.get("image_retries", 3))
+    backoff = float(settings.get("image_retry_backoff", 5))
+
     last_err: Exception | None = None
     for name in chain:
         fn = PROVIDERS.get(name)
         if not fn:
             log.warning("bilinmeyen sağlayıcı: %s", name)
             continue
-        try:
-            log.info("görsel üretiliyor → %s", name)
-            raw = fn(prompt, negative, w, h)
-            processed = postprocess(raw, style)
-            log.info("görsel hazır (%s, %d bayt)", name, len(processed))
-            return processed, name
-        except Exception as exc:
-            log.warning("sağlayıcı '%s' başarısız: %s", name, exc)
-            last_err = exc
-            continue
+        # Geçici hatalar (500, timeout) için tekrar dene; anahtar yoksa boşuna deneme.
+        for attempt in range(1, tries + 1):
+            try:
+                log.info("görsel üretiliyor → %s (deneme %d/%d)", name, attempt, tries)
+                raw = fn(prompt, negative, w, h)
+                processed = postprocess(raw, style)
+                log.info("görsel hazır (%s, %d bayt)", name, len(processed))
+                return processed, name
+            except MissingKey as exc:
+                log.info("sağlayıcı '%s' atlandı: %s", name, exc)
+                last_err = exc
+                break                      # anahtar yok → sıradaki sağlayıcı
+            except Exception as exc:
+                last_err = exc
+                if attempt < tries:
+                    log.warning("sağlayıcı '%s' hata (%s) — %.0fs sonra tekrar",
+                                name, exc, backoff)
+                    time.sleep(backoff)
+                else:
+                    log.warning("sağlayıcı '%s' %d denemede başarısız: %s", name, tries, exc)
     raise GenerationError(f"tüm sağlayıcılar başarısız: {last_err}")
 
 

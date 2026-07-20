@@ -17,6 +17,8 @@ schedule_utc:
 # --- Görsel üretim sağlayıcı zinciri (soldan sağa fallback) -----------------
 # İlki hata verirse sıradakine düşülür. Hepsi ücretsiz/anahtarsız veya ücretsiz kotalı.
 provider_chain: ["pollinations", "cloudflare", "together"]
+image_retries: 3          # geçici hata (500/timeout) olursa sağlayıcıyı kaç kez dene
+image_retry_backoff: 5    # denemeler arası bekleme (saniye)
 providers:
   pollinations:
     model: "flux"          # anahtarsız, ücretsiz
