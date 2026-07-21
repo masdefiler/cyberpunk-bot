@@ -15,9 +15,11 @@ def _png():
 
 CONCEPT = {
     "konsept_basligi": "Test Konsept",
+    "kart_baslik": "Test kart başlığı",
+    "kart_fayda": "Test fayda cümlesi.",
     "gorsel_prompt": "a test scene",
     "negatif_prompt": "",
-    "kisa_kurgu_metin": "Bir test kurgusu.",
+    "caption_metin": "Bir test açıklaması.",
     "hashtag_onerileri": ["test"],
 }
 

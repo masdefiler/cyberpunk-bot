@@ -1,34 +1,45 @@
-# Siberpunk Otonom Instagram İçerik Botu
+# kulups.com — Otonom Instagram İçerik Botu
 
-Kendi kendine işleyen bir Instagram içerik üretim + paylaşım sistemi.
-Tema: **siberpunk estetiği + alternatif tarih + spekülatif gelecek**.
+`@kulupsapps` hesabı için kendi kendine çalışan içerik üretim + paylaşım sistemi.
+İçerik: **kulups.com özellik tanıtımı** (basketbol kulüpleri için dijital yönetim sistemi).
 
-Her çalışmada: fikir üretir → görsel üretir → 4:5'e işler → barındırır → caption yazar → Instagram'a yayınlar.
-Zamanlama **GitHub Actions cron** ile (günde 2 kez). Aylık maliyet hedefi **0–5 USD**.
+Her çalışmada: özellik seç → tanıtım metni yaz → arka plan görseli üret →
+üzerine **gerçek metin kartı** bas → barındır → Instagram'a yayınla.
+Zamanlama **GitHub Actions cron** ile. Maliyet: **$0/ay**.
 
 ---
 
 ## Nasıl çalışır
 
 ```
-state → ideate → generate → host → caption → publish → SQLite
+state → ideate → generate (+card) → host → caption → publish → SQLite
 ```
 
 | Modül | İş |
 |-------|----|
 | `state.py` | SQLite: sütun rotasyonu, tekrar önleme (son 50 başlık), 24s kotası |
-| `ideate.py` | JSON konsept üretimi — zincir: gemini(ücretsiz)→pollinations(anahtarsız)→şablon |
-| `generate.py` | Görsel üretimi (sağlayıcı zinciri) + Pillow son-işleme + filigran |
+| `ideate.py` | Özellik tanıtımı üretir (başlık + fayda + görsel prompt + caption) |
+| `generate.py` | Arka plan görseli (sağlayıcı zinciri + retry) + son-işleme |
+| `card.py` | **Görselin üstüne gerçek metin basar** — logo, altın aksan, başlık, fayda, kulups.com |
 | `host.py` | Public URL: GitHub raw (varsayılan) veya Cloudflare R2 |
-| `caption.py` | Mikro-kurgu + her seferinde farklı 15–25 hashtag |
+| `caption.py` | Açıklama + her seferinde farklı 15–25 hashtag |
 | `publish.py` | Instagram Graph API iki adımlı yayın + 24s limiti |
-| `pipeline.py` | Hepsini yöneten orkestratör (`--dry-run`, `--count`) |
+| `pipeline.py` | Orkestratör (`--dry-run`, `--count`, `--publish`) |
 
-**5 içerik sütunu** (sırayla döner): A) Alternatif Tarih · B) Yakın Gelecek Sokakları ·
-C) Terkedilmiş Gelecek · D) Portre · E) Nesne/Artefakt. `config/pillars.yaml`'da tanımlı.
+> **Neden ayrı kart katmanı?** AI görsel modelleri düzgün yazı basamaz. Bu yüzden
+> arka planı model üretir, metni Pillow ile biz basarız → Türkçe karakterler dahil
+> her zaman düzgün ve marka tutarlı.
 
-**Görsel kimlik** `config/style.yaml`'daki `style_suffix`'e bağlı — her görsel prompt'unun
-sonuna otomatik eklenir, böylece hesap tutarlı görünür.
+### 5 içerik sütunu (sırayla döner)
+`config/pillars.yaml` — **sadece gerçek ürün özellikleri**, uydurma özellik yok:
+
+| | Sütun | Kapsam |
+|---|---|---|
+| A | Saha & Takım Yönetimi | Takım/sporcu kadrosu, yoklama, antrenman-maç takvimi |
+| B | Sporcu Gelişimi | Bireysel program, ölçüm & gelişim, sakatlık takibi |
+| C | Aidat & Tahsilat | Aidat takibi, iyzico online tahsilat, kulüp mağazası |
+| D | Veli İletişimi & Evrak | Veli-sporcu portalı, bildirim/e-posta, evrak takibi |
+| E | Ücretsiz Taktik Tahtası | Üyeliksiz, ücretsiz sürükle-bırak taktik tahtası (değer sunma) |
 
 ---
 
@@ -36,126 +47,60 @@ sonuna otomatik eklenir, böylece hesap tutarlı görünür.
 
 | Kalem | Maliyet |
 |-------|---------|
-| Fikir (pollinations anahtarsız / gemini ücretsiz katman) | **0 USD** |
-| Görsel (pollinations/cloudflare/together ücretsiz) | 0 USD |
-| Barındırma (GitHub raw) | 0 USD |
-| Zamanlama (GitHub Actions) | 0 USD (public repo) |
-
-> Varsayılan kurulum **tamamen anahtarsız ve $0**'dır. İstersen kalite için ücretsiz
-> Gemini anahtarı ya da (ücretli) Claude anahtarı ekleyebilirsin — ama şart değil.
+| Metin (Gemini ücretsiz katman / pollinations anahtarsız) | **0 USD** |
+| Görsel (pollinations anahtarsız) | 0 USD |
+| Barındırma (GitHub raw) + zamanlama (Actions) | 0 USD |
 
 ---
 
-## 1. Yerel kurulum & test (anahtarsız)
+## Yerel kullanım
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
-# Anahtar GEREKMEZ — dry-run yerel şablon + ücretsiz pollinations ile çalışır
-python -m src.pipeline --count 3
+python -m src.pipeline --count 3      # dry-run → preview/ klasörüne yazar, YAYINLAMAZ
+python -m src.pipeline --publish      # gerçek yayın
+IDEATE_PROVIDER=template python -m src.pipeline   # ağsız/şablon test
 ```
 
-Çıktılar `preview/` klasörüne düşer (`.png` görsel + `.txt` caption). Yayın YAPILMAZ.
-
-`.env` istersen: `cp .env.example .env` ve doldur. Gerçek fikir üretimi için
-`ANTHROPIC_API_KEY`, gerçek yayın için `IG_*` gerekir.
+Anahtarlar `.env`'den okunur (`.env.example`'a bak). Hiç anahtar olmasa bile
+dry-run çalışır: fikir → pollinations, görsel → pollinations, en kötü ihtimalle şablon.
 
 ---
 
-## 2. Instagram Business hesabı bağlama & token alma
-
-Instagram içerik yayını **profesyonel (Business/Creator) hesap** + **Meta uygulaması** ister.
-
-1. Instagram hesabını **Profesyonel** yap (Ayarlar → Hesap türü).
-2. [developers.facebook.com](https://developers.facebook.com) → **Create App** → tür: **Business**.
-3. Uygulamaya **Instagram** ürününü ekle → **Instagram API setup with Instagram login**.
-4. **Instagram hesabını bağla** ve şu izinleri iste:
-   `instagram_business_basic`, `instagram_business_content_publish`.
-5. Bir **uzun ömürlü erişim token'ı** üret (IGAA… ile başlar, 60 gün geçerli).
-6. **IG_USER_ID**'yi al: token ile
-   `GET https://graph.instagram.com/me?fields=user_id&access_token=…`
-
-> Bu proje varsayılan olarak **Instagram Login** akışını (`graph.instagram.com`) kullanır.
-> Facebook Login akışı kullanıyorsan repo değişkeni `GRAPH_MODE=facebook` yap ve
-> `GRAPH_BASE=https://graph.facebook.com/v21.0` ver.
-
----
-
-## 3. GitHub Secrets
-
-Repo → **Settings → Secrets and variables → Actions** → **New repository secret**:
+## GitHub Secrets
 
 | Secret | Zorunlu | Ne |
 |--------|---------|----|
-| `IG_USER_ID` | evet | Instagram profesyonel hesap ID'si |
-| `IG_ACCESS_TOKEN` | evet | Uzun ömürlü token (IGAA…) |
-| `GH_PAT` | token yenileme için | `secrets:write` izinli fine-grained PAT |
-| `GEMINI_API_KEY` | opsiyonel | Fikir kalitesi için ücretsiz AI Studio anahtarı (yoksa anahtarsız pollinations) |
-| `ANTHROPIC_API_KEY` | opsiyonel | Ücretli Claude ideation (chain'e "claude" eklenirse) |
-| `CLOUDFLARE_ACCOUNT_ID` / `CLOUDFLARE_API_TOKEN` | opsiyonel | cloudflare sağlayıcısı |
-| `TOGETHER_API_KEY` | opsiyonel | together sağlayıcısı |
-| `FAL_KEY` | opsiyonel | fal (ücretli) sağlayıcısı |
+| `IG_USER_ID` | evet | Instagram profesyonel hesap ID'si (@kulupsapps) |
+| `IG_ACCESS_TOKEN` | evet | Uzun ömürlü IGAA token (60 gün) |
+| `GEMINI_API_KEY` | önerilir | Metin kalitesi (ücretsiz katman); yoksa pollinations |
+| `GH_PAT` | token yenileme | `secrets:write` izinli fine-grained PAT |
 
-**Variables** (secret değil) sekmesinde opsiyonel:
-`PROVIDER` (varsayılan `pollinations`), `GRAPH_MODE`.
+## Zamanlama
 
-> `REPO_SLUG` otomatik dolar (`github.repository`) — elle girmene gerek yok.
+`.github/workflows/post.yml` — günde iki kez: **16:00** ve **02:00 UTC**.
+Manuel: Actions → *Gönderi Yayınla* → Run workflow.
 
----
+> Cron UTC'dir ve DST bilmez. Duraklatmak için `on:` altındaki `schedule` bloğunu
+> yorum satırı yap.
 
-## 4. Zamanlama (otomatik yayın)
-
-`.github/workflows/post.yml` günde iki kez çalışır:
-
-- **16:00 UTC** ≈ Vancouver 09:00 (yaz)
-- **02:00 UTC** ≈ Vancouver 19:00 (yaz)
-
-> GitHub cron **UTC**'dir ve yaz saatini (DST) bilmez; kışın Vancouver saatleri
-> 1 saat kayar (08:00/18:00). İstersen cron değerlerini elle güncelle.
-
-Manuel tetikleme: repo → **Actions → Gönderi Yayınla → Run workflow** (adet seçebilirsin).
-
----
-
-## 5. Token'ı otomatik yenileme
-
-IGAA token'ı 60 günde bir yenilenmeli. `.github/workflows/refresh-token.yml`
-her Pazartesi çalışır, token'ı yeniler ve `IG_ACCESS_TOKEN` secret'ını günceller.
-
-**Ön koşul:** `GH_PAT` secret'ı (secrets:write izinli PAT) — varsayılan `GITHUB_TOKEN`
-secret güncelleyemez. Yerelde elle yenilemek için:
-
-```bash
-IG_ACCESS_TOKEN=… python scripts/refresh_token.py   # yeni token'ı yazdırır
-```
+`.github/workflows/refresh-token.yml` haftalık çalışıp IG token'ını yeniler
+(60 günlük süre hiç dolmaz). `GH_PAT` gerektirir.
 
 ---
 
 ## Özelleştirme
 
-- **Filigran:** `config/style.yaml` → `post.watermark.text` (şu an `KRONØS`). Kapatmak için `enabled: false`.
-- **Renk/atmosfer:** `config/style.yaml` → `style_suffix` ve `palette`.
-- **Sütunlar:** `config/pillars.yaml` → `yon`/`ornek` alanlarını düzenle, sırayı `rotation` belirler.
-- **Ritim & hashtag havuzları:** `config/settings.yaml`.
-- **Sağlayıcı:** `PROVIDER` env veya `settings.yaml` → `provider_chain`.
-
----
+- **Özellikler/sütunlar:** `config/pillars.yaml` (⚠️ gerçek özellik dışında ekleme)
+- **Görsel kimlik & kart:** `config/style.yaml` — palet, degrade örtü, punto, logo, footer
+- **Logo:** `assets/logo.png` (şeffaf kalkan)
+- **Ritim & hashtag havuzları:** `config/settings.yaml`
+- **Sağlayıcı:** `PROVIDER` env veya `provider_chain`
 
 ## Test
 
 ```bash
-pip install pytest
-pytest                 # API çağrıları mock'lu; ağ gerekmez
+pytest        # 35 test, API'ler mock'lu, ağ gerekmez
 ```
-
-## Sağlayıcı notları
-
-| Sağlayıcı | Anahtar | Not |
-|-----------|---------|-----|
-| `pollinations` | yok | Ücretsiz, varsayılan. FLUX. |
-| `cloudflare` | evet | Workers AI FLUX-1-schnell, cömert ücretsiz kota |
-| `together` | evet | FLUX.1-schnell-Free katmanı |
-| `fal` | evet | Ücretli, en yüksek kalite (opsiyonel) |
-
-Zincirdeki bir sağlayıcı hata verirse otomatik olarak sıradakine düşülür.

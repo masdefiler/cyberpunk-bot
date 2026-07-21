@@ -4,11 +4,9 @@ name: Gönderi Yayınla
 # Cron UTC'dir. Vancouver (yaz, PDT=UTC-7) 09:00 → 16:00 UTC, 19:00 → 02:00 UTC.
 # NOT: Actions cron DST bilmez; kışın (PST) yerel saatler 1 saat kayar.
 on:
-  # ⏸️ HESAP TAŞIMA SIRASINDA DURAKLATILDI (kronospunk → hoopgramapp hesabına geçiş).
-  # Taşıma bitince aşağıdaki 3 satırdaki "# " işaretlerini kaldır → otomatik paylaşım geri gelir.
-  # schedule:
-  #   - cron: "0 16 * * *"   # ~09:00 Vancouver
-  #   - cron: "0 2 * * *"    # ~19:00 Vancouver (bir önceki günün akşamı)
+  schedule:
+    - cron: "0 16 * * *"   # ~09:00 Vancouver
+    - cron: "0 2 * * *"    # ~19:00 Vancouver (bir önceki günün akşamı)
   workflow_dispatch:
     inputs:
       count:

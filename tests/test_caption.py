@@ -3,8 +3,10 @@ from src import caption
 
 
 CONCEPT = {
-    "konsept_basligi": "Neon Şehir",
-    "kisa_kurgu_metin": "Yağmur hiç dinmedi.",
+    "konsept_basligi": "Yoklama tek dokunuş",
+    "kart_baslik": "Yoklama artık deftere yazılmıyor",
+    "kart_fayda": "Tek dokunuşla işaretle.",
+    "caption_metin": "Deftere yazılan liste kaybolur.",
     "hashtag_onerileri": ["ozelbir", "konsept"],
 }
 
@@ -25,7 +27,7 @@ def test_hashtags_unique():
 
 def test_fiction_first_and_separator_present():
     cap = caption.build_caption(CONCEPT)
-    assert cap.splitlines()[0] == "Yağmur hiç dinmedi."
+    assert cap.splitlines()[0] == "Deftere yazılan liste kaybolur."
     assert caption.SEPARATOR in cap
 
 

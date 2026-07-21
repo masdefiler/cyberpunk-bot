@@ -173,7 +173,7 @@ def generate(concept: dict, style: dict) -> tuple[bytes, str]:
             try:
                 log.info("görsel üretiliyor → %s (deneme %d/%d)", name, attempt, tries)
                 raw = fn(prompt, negative, w, h)
-                processed = postprocess(raw, style)
+                processed = postprocess(raw, style, concept)
                 log.info("görsel hazır (%s, %d bayt)", name, len(processed))
                 return processed, name
             except MissingKey as exc:
@@ -194,7 +194,8 @@ def generate(concept: dict, style: dict) -> tuple[bytes, str]:
 # ---------------------------------------------------------------------------
 #  Pillow son-işleme: 4:5 kırp + kontrast/doygunluk + grain + vinyet + filigran
 # ---------------------------------------------------------------------------
-def postprocess(raw: bytes, style: dict) -> bytes:
+def postprocess(raw: bytes, style: dict, concept: dict | None = None) -> bytes:
+    """Arka planı 4:5'e getirir, hafif işler; concept verilirse ÜSTÜNE metin kartını basar."""
     w = int(style.get("width", 1080))
     h = int(style.get("height", 1350))
     post = style.get("post", {}) or {}
@@ -214,6 +215,12 @@ def postprocess(raw: bytes, style: dict) -> bytes:
     wm = post.get("watermark", {}) or {}
     if wm.get("enabled") and str(wm.get("text", "")).strip():
         img = _add_watermark(img, wm)
+
+    # Özellik tanıtımı: arka planın üstüne gerçek metin + logo bas
+    if concept and (style.get("card") or {}).get("enabled"):
+        from .card import render_card
+        img = render_card(img, concept.get("kart_baslik", ""),
+                          concept.get("kart_fayda", ""), style)
 
     out = io.BytesIO()
     img.save(out, format="PNG")

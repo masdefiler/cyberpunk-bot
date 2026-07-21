@@ -26,22 +26,26 @@ def test_validate_requires_all_keys():
 def test_validate_normalizes_hashtags_from_string():
     data = {
         "konsept_basligi": "Başlık",
+        "kart_baslik": "Kart başlığı",
+        "kart_fayda": "Fayda cümlesi",
         "gorsel_prompt": "a scene",
         "negatif_prompt": "",
-        "kisa_kurgu_metin": "kurgu",
-        "hashtag_onerileri": "#cyberpunk, neon  future",
+        "caption_metin": "açıklama",
+        "hashtag_onerileri": "#basketbol, yoklama  aidat",
     }
     out = ideate._validate(data)
-    assert out["hashtag_onerileri"] == ["cyberpunk", "neon", "future"]
+    assert out["hashtag_onerileri"] == ["basketbol", "yoklama", "aidat"]
 
 
 def test_validate_rejects_empty_title():
     with pytest.raises(ValueError):
         ideate._validate({
             "konsept_basligi": "  ",
+            "kart_baslik": "x",
+            "kart_fayda": "y",
             "gorsel_prompt": "x",
             "negatif_prompt": "",
-            "kisa_kurgu_metin": "y",
+            "caption_metin": "y",
             "hashtag_onerileri": [],
         })
 
@@ -77,9 +81,11 @@ def test_ideate_gemini_used(monkeypatch):
 
     concept = {
         "konsept_basligi": "Gemini Konsept",
+        "kart_baslik": "Kart başlığı",
+        "kart_fayda": "Fayda",
         "gorsel_prompt": "a scene",
         "negatif_prompt": "",
-        "kisa_kurgu_metin": "kurgu",
+        "caption_metin": "açıklama",
         "hashtag_onerileri": ["a", "b"],
     }
     monkeypatch.setattr(config, "env", lambda k, d="":

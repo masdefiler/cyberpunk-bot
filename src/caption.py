@@ -21,13 +21,13 @@ def build_caption(concept: dict) -> str:
     lo = int(posting.get("hashtag_min", 15))
     hi = int(posting.get("hashtag_max", 25))
 
-    fiction = str(concept.get("kisa_kurgu_metin", "")).strip()
-    title = str(concept.get("konsept_basligi", "")).strip()
+    body_text = str(concept.get("caption_metin", "")).strip()
+    title = str(concept.get("kart_baslik") or concept.get("konsept_basligi") or "").strip()
 
     tags = _select_hashtags(concept.get("hashtag_onerileri", []), lo, hi, settings)
     tag_line = " ".join(f"#{t}" for t in tags)
 
-    body = fiction or title
+    body = body_text or title
     parts = [body, "", SEPARATOR, "", tag_line]
     return "\n".join(parts).strip()
 

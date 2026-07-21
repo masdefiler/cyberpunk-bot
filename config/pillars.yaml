@@ -1,54 +1,74 @@
 # ============================================================================
-#  İÇERİK SÜTUNLARI  —  Her gönderi bunlardan birine ait.
+#  İÇERİK SÜTUNLARI — kulups.com (Kulüp Yönetimi) özellik tanıtımı
+#  Hedef kitle: basketbol kulübü yöneticileri, antrenörler, kulüp sahipleri.
 #  rotation sırayla döner (state.py son kullanılanı hatırlar, sıradakini seçer).
-#  Her sütunun "yon" alanı, ideation prompt'una fikir üretmesi için verilir.
+#  ⚠️ Buradaki özellikler GERÇEK ürün özellikleridir — uydurma özellik EKLEME.
 # ============================================================================
 
 rotation: ["A", "B", "C", "D", "E"]
 
 pillars:
   A:
-    ad: "Alternatif Tarih"
-    aciklama: "Tarihsel bir an, hiç olmamış bir teknolojiyle yeniden kurgulanır."
-    ornek: "1920'ler İstanbul'unda neon hologram tramvaylar, buhar ve devre karışımı sokaklar."
+    ad: "Saha & Takım Yönetimi"
+    aciklama: "Takım/sporcu kadrosu, yoklama ve antrenman-maç takvimi."
+    ornek: "Yoklamayı tek dokunuşla al, devamsızlık raporu kendiliğinden çıksın."
+    ozellikler:
+      - "Takım & Sporcu Yönetimi — yaş gruplarına göre takımlar, sporcu kartları, pozisyon, forma no, veli bilgileri tek yerde"
+      - "Antrenman & Maç Takvimi — haftalık program oluştur, maçları planla, veli ve sporculara otomatik bildirim gitsin"
+      - "Yoklama — antrenman katılımını tek dokunuşla işaretle, devamsızlık raporlarını gör"
     yon: >-
-      Belirli bir tarihsel dönem ve şehir seç (ör. Osmanlı, Victoria dönemi Londra,
-      1950'ler Tokyo). Ona anakronik ileri teknoloji yerleştir: hologram, neon,
-      androidler, uçan araçlar. Dönemin mimarisi ve kıyafeti korunur ama teknoloji
-      geleceğe aittir. Dönem-teknoloji zıtlığı çarpıcı olsun.
+      Yukarıdaki özelliklerden BİRİNİ seç ve onu tanıt. Antrenörün/yöneticinin
+      sahadaki günlük derdinden yola çık (kayıp liste, deftere yazılan yoklama,
+      WhatsApp'ta kaybolan program) ve özelliğin bunu nasıl bitirdiğini söyle.
+      Görsel: antrenman salonu, saha kenarı, antrenör-takım anı.
 
   B:
-    ad: "Yakın Gelecek Sokakları"
-    aciklama: "2050-2090 arası şehir sahneleri; yağmur, neon, kalabalık."
-    ornek: "2071 Jakarta'sında, yağmur altında neon tabelalı dar bir çarşı, izometrik kadraj."
+    ad: "Sporcu Gelişimi"
+    aciklama: "Bireysel program, ölçüm/gelişim takibi ve sakatlık kayıtları."
+    ornek: "Boy, kilo ve performans ölçümleri; sporcunun aylar içindeki gelişimi tek yerde."
+    ozellikler:
+      - "Bireysel Program — sporcuya özel gelişim programı ata, sporcu kendi panelinden takip etsin"
+      - "Ölçüm & Gelişim — boy, kilo, performans ölçümlerini kaydet, zaman içindeki gelişimi izle"
+      - "Sakatlık Takibi — sakatlık kayıtları, beklenen dönüş tarihi ve sağlık geçmişi elinin altında"
     yon: >-
-      2050-2090 arası bir tarih ve gerçek bir megakent seç. Sokak seviyesi ya da
-      izometrik kadraj. Yağmur, buhar, kalabalık, holografik reklamlar, çok katmanlı
-      şehir. Yaşayan, nefes alan bir an yakala — bir kişi, bir dükkan, bir köşe.
+      Bir özelliği seç. Sporcunun gelişimini "hissetmek" ile "ölçmek" arasındaki
+      farkı vurgula. Veliye/sporcuya somut ilerleme göstermenin değerini anlat.
+      Görsel: genç sporcu antrenmanda, şut çalışması, ölçüm/kondisyon anı.
 
   C:
-    ad: "Terkedilmiş Gelecek"
-    aciklama: "Çökmüş yüksek teknoloji, doğaya karışan megayapılar."
-    ornek: "Ormanın yuttuğu dev bir veri merkezi, kırık güneş panelleri, sessizlik."
+    ad: "Aidat & Tahsilat"
+    aciklama: "Aidat takibi, online kartla tahsilat ve kulüp mağazası."
+    ornek: "Aidatı kovalamayı bırak; veli karttan öder, sistem takibi kendi yapar."
+    ozellikler:
+      - "Aidat & Online Tahsilat — aidatları takip et, velilere talep gönder, iyzico ile kartla otomatik tahsilat al"
+      - "Kulüp Mağazası — forma, ekipman ve ürünleri listele, kulüp içi satışları yönet"
     yon: >-
-      İnsanlığın terk ettiği bir ileri-teknoloji yapı seç: veri merkezi, uzay limanı,
-      megablok, robot fabrikası. Doğa onu geri alıyor — sarmaşık, su, kum, pas.
-      Melankolik, sakin, post-apokaliptik ama şiirsel. İnsan yok ya da tek bir figür.
+      Kulüplerin en büyük derdi: aidat kovalamak, kim ödedi kim ödemedi karmaşası,
+      elden nakit. Özelliğin bunu nasıl bitirdiğini net söyle. Para konusunda
+      abartılı gelir vaadi VERME; sadece takip ve tahsilat kolaylığını anlat.
+      Görsel: kulüp ofisi, forma/ekipman, düzen ve ferahlık hissi.
 
   D:
-    ad: "Portre"
-    aciklama: "Siberpunk karakter portreleri; implant/protez detaylı, sinematik ışık."
-    ornek: "Kromajlı gözlü, devre dövmeli bir sokak hackeri, yandan neon ışık."
+    ad: "Veli İletişimi & Evrak"
+    aciklama: "Veli-sporcu portalı, otomatik bildirim/e-posta ve evrak takibi."
+    ornek: "Lisans, sağlık raporu, sözleşme — hepsi sporcu bazında, aranmadan bulunur."
+    ozellikler:
+      - "Veli & Sporcu Portalı — veliler ve sporcular kendi panelinden program, aidat ve bildirimlerini görür"
+      - "Bildirim & E-posta — her önemli işlemde veliye/sporcuya site-içi bildirim ve otomatik e-posta"
+      - "Evrak Takibi — lisans, sağlık raporu, sözleşme; tüm belgeleri sporcu bazında sakla"
     yon: >-
-      Tek bir siberpunk karakter tasarla: meslek/arketip belirle (hacker, samuray,
-      tamirci, elçi). Kibernetik detaylar (implant, protez kol, göz, devre dövmesi).
-      Yakın/orta plan portre, sinematik yan ışık, karakterin bir hikayesi hissedilsin.
+      Veli iletişiminin klasik derdi: kalabalık WhatsApp grubu, kaybolan mesaj,
+      "haberim yoktu" cümlesi, evrak peşinde koşmak. Özelliğin bunu nasıl
+      çözdüğünü anlat. Görsel: veli-çocuk-antrenör anı, tribün, sıcak kulüp atmosferi.
 
   E:
-    ad: "Nesne / Artefakt"
-    aciklama: "Kurgusal bir cihazın müze/katalog sunumu."
-    ornek: "2140 yapımı bir nöral arayüz maskesi, koyu zeminde müze vitrini sunumu."
+    ad: "Ücretsiz Taktik Tahtası"
+    aciklama: "Üyelik gerektirmeyen, tamamen ücretsiz sürükle-bırak taktik tahtası."
+    ornek: "Sürükle-bırak taktik tahtası: oyunu kur, çizimi kaydet, yazdır. Üyelik yok."
+    ozellikler:
+      - "Taktik Tahtası — sürükle-bırak ile oyun kur, çizimleri kaydedip yazdır; ÜYELİK GEREKMEZ, tamamen ücretsiz"
     yon: >-
-      Kurgusal tek bir cihaz/artefakt tasarla: nöral arayüz, silah, iletişim aracı,
-      implant. Onu bir müze vitrini ya da ürün-katalog sunumu gibi göster: temiz zemin,
-      tek ışık, detaylı doku. Nesnenin ne işe yaradığı merak uyandırsın.
+      Bu sütun satış değil, DEĞER sunma sütunu: herkesin bedava kullanabileceği
+      taktik tahtasını duyur. "Üyelik gerekmez, tamamen ücretsiz" vurgusunu mutlaka yap.
+      Antrenörün oyun kurma anına odaklan. Görsel: taktik/oyun kurma, antrenör ve
+      pota, strateji hissi. Sıcak ve davetkâr bir dil kullan.

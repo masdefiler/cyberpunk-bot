@@ -1,47 +1,75 @@
 # ============================================================================
-#  GÖRSEL KİMLİK  —  Hesabın tutarlılığının kalbi.
-#  style_suffix her görsel prompt'unun SONUNA otomatik eklenir (bkz. ideate.py).
-#  Bu dosyayı değiştirirsen hesabın bütün estetiği değişir; dikkatli oyna.
+#  GÖRSEL KİMLİK — kulups.com (Kulüp Yönetimi)
+#  Akış: AI arka plan görseli → koyu degrade örtü → ÜZERİNE Pillow ile GERÇEK
+#  metin (başlık + fayda) + logo. AI modelleri yazı basamadığı için metni biz
+#  basıyoruz; bu yüzden negatif prompt'ta "text/letters" kesinlikle yasak.
 # ============================================================================
-
-# En-boy oranı (Instagram dikey feed için ideal): 4:5
 aspect_ratio: "4:5"
 width: 1080
 height: 1350
 
-# --- Ortak stil eki: HER prompt'un sonuna eklenir --------------------------
-# Renk paleti, ışık, lens, film dokusu burada sabitlenir → kimlik sabit kalır.
+# Arka plan görselinin ortak stili — her görsel prompt'unun SONUNA eklenir.
 style_suffix: >-
-  cinematic cyberpunk aesthetic, neon-drenched atmosphere, teal-and-magenta color
-  grade with warm amber highlights, deep blacks, volumetric fog, wet reflective
-  streets, anamorphic lens flares, shallow depth of field, subtle 35mm film grain,
-  high dynamic range, moody chiaroscuro lighting, dense atmospheric haze,
-  intricate hyper-detail, retro-futuristic, dystopian mood, ultra-detailed, 8k
+  professional sports photography, modern basketball gym or club environment,
+  clean and uncluttered composition, generous empty negative space in the lower
+  half for text overlay, natural window light with warm highlights, cinematic
+  color grade, sharp focus and crisp detail throughout with only a gently
+  softened far background, bright and airy, optimistic and trustworthy mood,
+  editorial commercial photography quality, high resolution
 
-# --- Renk paleti (post-processing + referans) ------------------------------
-palette:
-  cyan: "#0af0ff"       # ana neon
-  magenta: "#ff2bd6"    # ikincil neon
-  amber: "#ffb000"      # sıcak vurgu
-  ink: "#05060a"        # neredeyse siyah zemin
-
-# --- Ortak negatif prompt: her üretimde kullanılır -------------------------
+# Yüz/el bozukluğu ve yazı riskini bastırır (metni biz basıyoruz).
 negative_prompt: >-
-  text, letters, watermark, signature, logo, extra fingers, deformed hands,
-  distorted face, mutated anatomy, low quality, blurry, jpeg artifacts,
-  oversaturated, cartoon, anime, childish, meme, bright daylight, flat lighting,
-  washed out, cluttered, ugly, disfigured, duplicate
+  text, letters, words, numbers, watermark, signature, logo, brand marks,
+  captions, subtitles, ui, interface, close-up face, distorted face, deformed
+  hands, extra fingers, extra limbs, mutated anatomy, low quality, blurry,
+  jpeg artifacts, oversaturated, cartoon, anime, 3d render, cluttered, messy,
+  dark and gloomy, sad mood
 
-# --- Hafif post-processing (Pillow) ----------------------------------------
+palette:
+  navy: "#0f172a"      # logo laciverti / metin zemini
+  blue: "#1a56db"      # sitenin birincil rengi (vurgu)
+  gold: "#d4a94f"      # logodaki altın (aksan çizgisi)
+  white: "#ffffff"
+
+# --- Görsel son-işleme (hafif; kart okunabilirliği önce gelir) ---
 post:
-  contrast: 1.08          # 1.0 = değişiklik yok
-  saturation: 1.05
-  grain: 0.04             # 0-1, çok hafif film greni
-  vignette: 0.18          # 0-1, köşe kararması
-  watermark:
-    enabled: true
-    text: "KRONOSPUNK"    # hesap adı (@kronospunk)
-    opacity: 0.32         # 0-1
-    size: 26              # px
-    margin: 34            # köşeden uzaklık (px)
-    position: "bottom-right"
+  contrast: 1.04
+  saturation: 1.02
+  grain: 0.0
+  vignette: 0.12
+
+# --- METİN KARTI: arka planın üstüne basılan gerçek metin katmanı ---
+card:
+  enabled: true
+  # Alt yarıyı karartan degrade → beyaz metin her arka planda okunur
+  overlay:
+    color: "#0b1220"
+    top_alpha: 0.10        # üst kenarda örtü neredeyse yok
+    bottom_alpha: 0.92     # altta güçlü (metin bölgesi)
+    start: 0.30            # görselin %30'undan itibaren koyulaşmaya başla
+  margin: 78               # kenar boşluğu (px)
+  headline:
+    size: 74               # büyük başlık (özellik/fayda)
+    line_spacing: 12
+    max_lines: 3
+    color: "#ffffff"
+  benefit:
+    size: 38               # altındaki açıklama satırı
+    line_spacing: 9
+    max_lines: 3
+    color: "#dbe3f0"
+    gap: 26                # başlıkla arasındaki boşluk
+  accent:                  # başlığın üstündeki kısa altın çizgi
+    color: "#d4a94f"
+    width: 96
+    height: 7
+    gap: 26
+  logo:
+    path: "assets/logo.png"
+    height: 92             # sol üst köşe
+    opacity: 0.97
+  footer:
+    text: "kulups.com"
+    size: 30
+    color: "#c8d3e6"
+    opacity: 0.92

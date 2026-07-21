@@ -1,5 +1,5 @@
 # ============================================================================
-#  ÇALIŞMA AYARLARI  —  paylaşım ritmi, sağlayıcı zinciri, hashtag havuzları.
+#  ÇALIŞMA AYARLARI — kulups.com Instagram botu (ritim, sağlayıcılar, hashtag).
 # ============================================================================
 
 posting:
@@ -51,19 +51,20 @@ ideation:
   anthropic_max_tokens: 1024
 
 # --- Hashtag havuzları: her gönderide bunlardan KARIŞIK seçilir -------------
+# Hedef kitle: TR basketbol kulüpleri, antrenörler, altyapı, spor velileri.
 hashtags:
-  core:
-    ["cyberpunk", "cyberpunkart", "cyberpunkaesthetic", "cyberpunkcity",
-     "dystopia", "dystopian", "neonnoir", "highdystopia"]
-  art:
-    ["scifiart", "conceptart", "digitalart", "aiart", "aiartcommunity",
-     "artificialintelligence", "generativeart", "midjourney", "digitalpainting"]
-  aesthetic:
-    ["neon", "neonlights", "synthwave", "retrofuturism", "vaporwave",
-     "futuristic", "future", "sciencefiction", "scifi", "blade_runner", "outrun"]
-  mood:
-    ["darkaesthetic", "moody", "cinematic", "atmospheric", "dystopiancore",
-     "nightcity", "rainynight", "megacity", "urbanfuture"]
-  theme:
-    ["alternatehistory", "speculativefiction", "worldbuilding", "solarpunk",
-     "postapocalyptic", "retrotech", "biopunk", "technoir"]
+  kulup:
+    ["kulupyonetimi", "sporkulubu", "basketbolkulubu", "altyapi", "kulup",
+     "sporyonetimi", "yonetimsistemi", "dijitalkulup"]
+  basketbol:
+    ["basketbol", "basketball", "basket", "potaaltinda", "minikbasket",
+     "basketbolantrenoru", "antrenor", "koc"]
+  altyapi:
+    ["altyapisporcusu", "gencyetenek", "sporcugelisimi", "cocukbasketbol",
+     "spordaegitim", "genclikspor", "yildizlar", "minikler"]
+  operasyon:
+    ["yoklama", "aidat", "antrenmanprogrami", "mactakvimi", "veliiletisimi",
+     "evraktakibi", "onlinetahsilat", "sporyazilimi"]
+  antrenor:
+    ["taktiktahtasi", "taktik", "antrenmanplani", "oyunkurma", "basketbolteknik",
+     "antrenorluk", "sahakenari", "kondisyon"]
