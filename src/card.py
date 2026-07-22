@@ -40,7 +40,7 @@ GOLD = (212, 169, 79)
 BLUE = (26, 86, 219)
 MUTED = (148, 163, 184)
 
-TEMPLATES = ("poster", "court", "duo", "stat")
+TEMPLATES = ("poster", "court", "duo", "stat", "sistem")
 
 # ---------------------------------------------------------------------------
 #  KÜRATÖRLÜ METİN HAVUZU — (başlık, fayda, vurgu-kelime)
@@ -89,13 +89,24 @@ POOL: dict[str, list[tuple[str, str, str]]] = {
     ],
 }
 
+# Tüm havuz KAPALI SALON çekimleridir (kullanıcı tercihi, 2026-07-22).
 PILLAR_PHOTOS = {
-    "A": ["kids-coach", "kids-play", "huddle"],
-    "B": ["kids-duel", "dunk", "kids-play"],
-    "C": ["huddle", "game", "kids-coach"],
-    "D": ["kids-coach", "huddle", "kids-play"],
-    "E": ["game", "hoop", "dunk2"],
+    "A": ["coach-draw", "timeout", "huddle"],
+    "B": ["indoor-shot", "coach-player", "game"],
+    "C": ["huddle", "timeout", "coach-board"],
+    "D": ["coach-player", "coach-board", "coach-draw"],
+    "E": ["coach-draw", "coach-board", "game"],
 }
+
+# "sistem" şablonu için genel tanıtım metinleri (pillar'dan bağımsız)
+GENEL: list[tuple[str, str, str]] = [
+    ("Kulübünün tüm yönetimi tek panelde",
+     "Yoklama, aidat, takvim, veli iletişimi ve taktik tahtası — hepsi bir arada.", "tek"),
+    ("Kağıt, Excel, WhatsApp devri bitti",
+     "Kulüp yönetiminin tamamı tek uygulamada; kurulum bizden.", "bitti"),
+]
+SISTEM_OZELLIKLER = ["Yoklama", "Aidat & Tahsilat", "Maç Takvimi",
+                     "Taktik Tahtası", "Veli Portalı", "Evrak & Kayıt"]
 
 
 # ---------------------------------------------------------------------------
@@ -216,16 +227,42 @@ def _fade_bottom(img, start=0.42, top_a=0.04, bot_a=0.94):
 # ---------------------------------------------------------------------------
 #  Saha motifleri + marka kilidi
 # ---------------------------------------------------------------------------
-def _court_lines(d: ImageDraw.ImageDraw, alpha=46, stroke=3):
-    """Zemine işlenen saha dili: merkez çember + yaylar + köşe işaretleri."""
+def _court_motif(d: ImageDraw.ImageDraw, ox: float, oy: float, u: float,
+                 alpha=46, stroke=3):
+    """GERÇEK yarım saha geometrisi, 0..100 birim uzayında (pota üstte).
+
+    Oranlar üründeki taktik tahtasıyla aynı: boyalı alan 34-66 / 3-34,
+    serbest atış çemberi (50,34) r9, çember (50,10) r2.3 + panya,
+    kısa devre yayı r5.5, üç sayı = köşe çizgileri x=8/92 (y 3→22) + r42 yay,
+    orta saha çizgisi y=97 + merkez çemberin üst yarısı.
+    """
     col = GOLD + (alpha,)
-    d.arc([S * 0.56, -S * 0.34, S * 1.34, S * 0.44], 20, 200, fill=col, width=stroke)
-    d.arc([-S * 0.30, S * 0.62, S * 0.42, S * 1.34], 180, 40, fill=col, width=stroke)
-    d.ellipse([S * 0.40, S * 0.40, S * 0.60, S * 0.60], outline=GOLD + (max(20, alpha - 16),), width=stroke)
-    ln = 26
-    for cx, cy, dx, dy in ((M, M, 1, 1), (S - M, M, -1, 1), (M, S - M, 1, -1), (S - M, S - M, -1, -1)):
-        d.line([cx, cy, cx + dx * ln, cy], fill=col, width=stroke)
-        d.line([cx, cy, cx, cy + dy * ln], fill=col, width=stroke)
+    P = lambda x, y: (ox + x * u, oy + y * u)
+    box = lambda cx, cy, r: [ox + (cx - r) * u, oy + (cy - r) * u,
+                             ox + (cx + r) * u, oy + (cy + r) * u]
+    # baseline
+    d.line([*P(3, 3), *P(97, 3)], fill=col, width=stroke)
+    # boyalı alan + serbest atış çemberi
+    d.rectangle([*P(34, 3), *P(66, 34)], outline=col, width=stroke)
+    d.ellipse(box(50, 34, 9), outline=col, width=stroke)
+    # panya + çember + kısa devre yayı
+    d.line([*P(42.5, 6.2), *P(57.5, 6.2)], fill=col, width=stroke)
+    d.ellipse(box(50, 10, 2.3), outline=col, width=stroke)
+    d.arc(box(50, 10, 5.5), 0, 180, fill=col, width=stroke)
+    # üç sayı: köşe çizgileri + yay (uçları köşe çizgilerine oturur: ~16°/164°)
+    d.line([*P(8, 3), *P(8, 22)], fill=col, width=stroke)
+    d.line([*P(92, 3), *P(92, 22)], fill=col, width=stroke)
+    d.arc(box(50, 10, 42), 16, 164, fill=col, width=stroke)
+    # orta saha: çizgi + merkez çemberin üst yarısı
+    d.line([*P(3, 97), *P(97, 97)], fill=col, width=stroke)
+    d.arc(box(50, 97, 10), 180, 360, fill=col, width=stroke)
+
+
+def _court_bg(base: Image.Image, *, u: float, ox: float, oy: float,
+              alpha=46, stroke=3):
+    ov = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    _court_motif(ImageDraw.Draw(ov), ox, oy, u, alpha=alpha, stroke=stroke)
+    base.alpha_composite(ov)
 
 
 def _brand(base: Image.Image, x: int, y: int, *, dark_bg: bool = True, chip: int = 74):
@@ -263,9 +300,7 @@ def _footer(d, y, *, center=False, x=M):
 def _t_poster(photo, headline, benefit, emph):
     im = _fade_bottom(_duotone(_cover(photo, S, S)))
     base = im.convert("RGBA")
-    ov = Image.new("RGBA", (S, S), (0, 0, 0, 0))
-    _court_lines(ImageDraw.Draw(ov), alpha=40)
-    base.alpha_composite(ov)
+    _court_bg(base, u=S * 0.0068, ox=S * 0.42, oy=S * 0.045, alpha=34, stroke=2)
     d = ImageDraw.Draw(base)
 
     maxw = S - 2 * M
@@ -292,9 +327,8 @@ def _t_poster(photo, headline, benefit, emph):
 # ===========================================================================
 def _t_court(photo, headline, benefit, emph):
     base = Image.new("RGBA", (S, S), NAVY + (255,))
-    ov = Image.new("RGBA", (S, S), (0, 0, 0, 0))
-    _court_lines(ImageDraw.Draw(ov), alpha=58, stroke=3)
-    base.alpha_composite(ov)
+    cu = S * 0.0115
+    _court_bg(base, u=cu, ox=(S - 100 * cu) / 2, oy=S * 0.1, alpha=44, stroke=3)
     d = ImageDraw.Draw(base)
 
     maxw = S - 2 * M
@@ -338,10 +372,8 @@ def _t_duo(photo, headline, benefit, emph):
     d = ImageDraw.Draw(base)
     d.rectangle([cut, 0, cut + 4, S], fill=GOLD)
 
-    ov = Image.new("RGBA", (S, S), (0, 0, 0, 0))
-    od = ImageDraw.Draw(ov)
-    od.arc([cut + S * 0.18, S * 0.66, cut + S * 0.9, S * 1.38], 180, 320, fill=GOLD + (44,), width=3)
-    base.alpha_composite(ov)
+    du = (S - cut) * 0.0086
+    _court_bg(base, u=du, ox=cut + 26, oy=S * 0.58, alpha=40, stroke=2)
     d = ImageDraw.Draw(base)
 
     x = cut + 56
@@ -369,9 +401,8 @@ def _t_duo(photo, headline, benefit, emph):
 # ===========================================================================
 def _t_stat(photo, headline, benefit, emph):
     base = Image.new("RGBA", (S, S), NAVY + (255,))
-    ov = Image.new("RGBA", (S, S), (0, 0, 0, 0))
-    _court_lines(ImageDraw.Draw(ov), alpha=50)
-    base.alpha_composite(ov)
+    su = S * 0.0104
+    _court_bg(base, u=su, ox=(S - 100 * su) / 2, oy=S * 0.14, alpha=36, stroke=2)
     d = ImageDraw.Draw(base)
     d.rectangle([M - 26, M - 26, S - M + 26, S - M + 26], outline=NAVY_SOFT, width=2)
 
@@ -414,7 +445,58 @@ def _t_stat(photo, headline, benefit, emph):
     return base.convert("RGB")
 
 
-_RENDER = {"poster": _t_poster, "court": _t_court, "duo": _t_duo, "stat": _t_stat}
+# ===========================================================================
+#  ŞABLON: sistem — genel tanıtım: başlık + özellik rozetleri + CTA
+# ===========================================================================
+def _t_sistem(photo, headline, benefit, emph):
+    base = Image.new("RGBA", (S, S), NAVY + (255,))
+    cu = S * 0.0115
+    _court_bg(base, u=cu, ox=(S - 100 * cu) / 2, oy=S * 0.3, alpha=38, stroke=3)
+    d = ImageDraw.Draw(base)
+
+    maxw = S - 2 * M
+    kf = F_TEXT(26, True)
+    kick = "Kulüp yönetim sistemi"
+    d.text(((S - d.textlength(kick, font=kf)) / 2, M + 96), kick, font=kf, fill=MUTED)
+
+    sz, lines = _mixed_wrap(d, headline, emph, 108, maxw, 2)
+    y = _draw_mixed(d, lines, sz, 0, M + 148, align="center", width=S)
+
+    bf, bl = _fit_plain(d, benefit, 30, maxw - 120, 2)
+    y += 14
+    for ln in bl:
+        d.text(((S - d.textlength(ln, font=bf)) / 2, y), ln, font=bf, fill=(203, 213, 225))
+        y += _lh(bf) + 8
+
+    # özellik rozetleri: 2 sütun × 3 satır, altın nokta işareti (font glifine güvenme)
+    rf = F_TEXT(28, True)
+    cols, gap_x, gap_y, rh = 2, 26, 14, 64
+    rw = (S - 2 * M - gap_x) / cols
+    gy = y + 34
+    for i, oz in enumerate(SISTEM_OZELLIKLER):
+        cx = M + (i % cols) * (rw + gap_x)
+        cy = gy + (i // cols) * (rh + gap_y)
+        d.rounded_rectangle([cx, cy, cx + rw, cy + rh], radius=16,
+                            fill=(24, 34, 56), outline=(51, 65, 85), width=2)
+        d.ellipse([cx + 26, cy + rh / 2 - 7, cx + 40, cy + rh / 2 + 7], fill=GOLD)
+        d.text((cx + 58, cy + (rh - _lh(rf)) // 2), oz, font=rf, fill=PAPER)
+
+    py = gy + 3 * (rh + gap_y) + 18
+    pf = F_TEXT(30, True)
+    pt = "14 gün ücretsiz dene"
+    pw = d.textlength(pt, font=pf) + 76
+    ph = 74
+    px = (S - pw) / 2
+    d.rounded_rectangle([px, py, px + pw, py + ph], radius=ph // 2, fill=BLUE)
+    d.text((px + 38, py + (ph - _lh(pf)) // 2), pt, font=pf, fill=(255, 255, 255))
+    df = F_TEXT(27, True)
+    d.text(((S - d.textlength("kulups.com", font=df)) / 2, py + ph + 20), "kulups.com", font=df, fill=GOLD)
+    _brand(base, (S - 74 - 16 - int(d.textlength("kulups", font=F_TEXT(34, True)))) // 2, M - 30)
+    return base.convert("RGB")
+
+
+_RENDER = {"poster": _t_poster, "court": _t_court, "duo": _t_duo,
+           "stat": _t_stat, "sistem": _t_sistem}
 
 
 # ===========================================================================
@@ -427,11 +509,11 @@ def compose(concept: dict, *, pillar: str = "", template: str | None = None,
     seed = concept.get("konsept_basligi") or concept.get("kart_baslik") or "kulups"
     rnd = random.Random(hashlib.sha1(seed.encode("utf-8")).hexdigest())
 
-    pool = POOL.get(pillar) or [p for v in POOL.values() for p in v]
-    headline, benefit, emph = pool[rnd.randrange(len(pool))]
-
     tpls = [t for t in TEMPLATES if t not in (exclude_templates or set())] or list(TEMPLATES)
     tpl = template if template in TEMPLATES else tpls[rnd.randrange(len(tpls))]
+
+    pool = GENEL if tpl == "sistem" else (POOL.get(pillar) or [p for v in POOL.values() for p in v])
+    headline, benefit, emph = pool[rnd.randrange(len(pool))]
 
     photo_name, photo = _pick_photo(pillar, rnd, exclude_photos or set())
     img = _RENDER[tpl](photo, headline, benefit, emph)
