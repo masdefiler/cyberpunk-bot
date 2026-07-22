@@ -20,7 +20,7 @@ import io
 import random
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFont, ImageOps
+from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageOps
 
 from . import config
 
@@ -39,8 +39,13 @@ PAPER = (241, 245, 249)     # kırık beyaz
 GOLD = (212, 169, 79)
 BLUE = (26, 86, 219)
 MUTED = (148, 163, 184)
+LIGHT_BG = (245, 247, 251)      # aydınlık zemin (kırık beyaz)
+INK = (15, 23, 42)              # açık zeminde metin = lacivert
+MUTED_D = (100, 116, 139)       # açık zeminde ikincil metin
 
-TEMPLATES = ("poster", "court", "duo", "stat", "sistem")
+TEMPLATES = ("poster", "court", "duo", "stat", "sistem",
+             "isik", "parlak", "kutlama", "an")
+LIGHT_TPLS = {"isik", "parlak", "kutlama", "an"}
 
 # ---------------------------------------------------------------------------
 #  KÜRATÖRLÜ METİN HAVUZU — (başlık, fayda, vurgu-kelime)
@@ -108,6 +113,20 @@ GENEL: list[tuple[str, str, str]] = [
 SISTEM_OZELLIKLER = ["Yoklama", "Aidat & Tahsilat", "Maç Takvimi",
                      "Taktik Tahtası", "Veli Portalı", "Evrak & Kayıt"]
 
+# Aydınlık/duygu kartları için MUTLU havuz (kutlama + an şablonları buradan konuşur)
+MUTLU: list[tuple[str, str, str]] = [
+    ("Velisi mutlu, sporcusu mutlu",
+     "Herkes gelişmeleri kendi panelinde görür; kimse sormak zorunda kalmaz.", "mutlu"),
+    ("Antrenör sahaya odaklanır",
+     "Evrak işleri sistemde; koç işine, çocuklar oyuna bakar.", "sahaya"),
+    ("Kulüpte herkesin yüzü gülüyor",
+     "Düzen kurulunca stres biter: yoklama, aidat, iletişim rayında.", "gülüyor"),
+    ("Antrenman günü en sevilen gün",
+     "Program belli, saat belli, herkes hazır — geriye oyun kalır.", "sevilen"),
+]
+# Aydınlık kartlarda kullanılacak fotoğraflar (doğal renk, sıcak grade)
+MOOD_PHOTOS = ["happy-run", "happy-gym", "coach-player", "indoor-shot"]
+
 
 # ---------------------------------------------------------------------------
 #  Fontlar (repo içi — Actions'ta da aynı)
@@ -163,7 +182,7 @@ def _mixed_wrap(d, text: str, emph: str, size: int, max_w: int, max_lines: int):
     return int(size * 0.5), lines  # son deneme ne verdiyse
 
 
-def _draw_mixed(d, lines, sz, x, y, *, align="left", width=0, gap=1.04):
+def _draw_mixed(d, lines, sz, x, y, *, align="left", width=0, gap=1.04, ink=None):
     df, af = F_DISPLAY(sz), F_ACCENT(int(sz * 0.94))
     lh = int(_lh(df) * gap)
     for ln in lines:
@@ -173,7 +192,7 @@ def _draw_mixed(d, lines, sz, x, y, *, align="left", width=0, gap=1.04):
             f = af if e else df
             # serif italiği display satırıyla taban hizasına oturt
             oy = _lh(df) - _lh(f) if e else 0
-            d.text((cx, y + oy), w, font=f, fill=GOLD if e else PAPER)
+            d.text((cx, y + oy), w, font=f, fill=GOLD if e else (ink or PAPER))
             cx += d.textlength(w + " ", font=f)
         y += lh
     return y
@@ -204,6 +223,15 @@ def _duotone(img: Image.Image) -> Image.Image:
     g = ImageOps.autocontrast(img.convert("L"), cutoff=1)
     return ImageOps.colorize(g, black=(8, 13, 28), white=(214, 224, 240),
                              mid=(44, 62, 96)).convert("RGB")
+
+
+def _warm(img: Image.Image) -> Image.Image:
+    """Aydınlık kartlar için doğal renk: kontrast + hafif sıcaklık/doygunluk."""
+    from PIL import ImageEnhance
+    im = ImageOps.autocontrast(img.convert("RGB"), cutoff=1)
+    im = ImageEnhance.Color(im).enhance(1.12)
+    im = ImageEnhance.Brightness(im).enhance(1.04)
+    return ImageEnhance.Contrast(im).enhance(1.05)
 
 
 def _cover(img, w, h, focus=0.32):
@@ -258,6 +286,17 @@ def _court_motif(d: ImageDraw.ImageDraw, ox: float, oy: float, u: float,
     d.arc(box(50, 97, 10), 180, 360, fill=col, width=stroke)
 
 
+def _court_motif_col(d, ox, oy, u, rgb, alpha=30, stroke=3):
+    """_court_motif ile aynı geometri, istenen renkte (açık tema için lacivert)."""
+    global GOLD
+    _g = GOLD
+    try:
+        GOLD = rgb          # motif fonksiyonu GOLD kullanır; geçici değiştir
+        _court_motif(d, ox, oy, u, alpha=alpha, stroke=stroke)
+    finally:
+        GOLD = _g
+
+
 def _court_bg(base: Image.Image, *, u: float, ox: float, oy: float,
               alpha=46, stroke=3):
     ov = Image.new("RGBA", (S, S), (0, 0, 0, 0))
@@ -268,7 +307,10 @@ def _court_bg(base: Image.Image, *, u: float, ox: float, oy: float,
 def _brand(base: Image.Image, x: int, y: int, *, dark_bg: bool = True, chip: int = 74):
     """Beyaz çipte kalkan + 'kulups' kelimesi — küçük, kesin, köşede."""
     d = ImageDraw.Draw(base)
-    d.rounded_rectangle([x, y, x + chip, y + chip], radius=int(chip * 0.28), fill=(255, 255, 255))
+    d.rounded_rectangle([x, y, x + chip, y + chip], radius=int(chip * 0.28),
+                        fill=(255, 255, 255),
+                        outline=None if dark_bg else (203, 213, 225),
+                        width=0 if dark_bg else 2)
     if LOGO_PATH.exists():
         lg = Image.open(LOGO_PATH).convert("RGBA")
         k = int(chip * 0.68)
@@ -278,20 +320,20 @@ def _brand(base: Image.Image, x: int, y: int, *, dark_bg: bool = True, chip: int
     wf = F_TEXT(34, bold=True)
     d = ImageDraw.Draw(base)
     d.text((x + chip + 16, y + (chip - _lh(wf)) // 2), "kulups",
-           font=wf, fill=PAPER if dark_bg else NAVY)
+           font=wf, fill=PAPER if dark_bg else INK)
 
 
-def _footer(d, y, *, center=False, x=M):
-    """Alt satır: kulups.com — altın nokta — 14 gün ücretsiz."""
+def _footer(d, y, *, center=False, x=M, dark=True):
+    """Alt satır: kulups.com — nokta — 14 gün ücretsiz (iki temada da)."""
     f1, f2 = F_TEXT(30, True), F_TEXT(28)
     t1, t2 = "kulups.com", "14 gün ücretsiz"
     w = d.textlength(t1, font=f1) + 30 + d.textlength(t2, font=f2)
     if center:
         x = (S - w) / 2
-    d.text((x, y), t1, font=f1, fill=GOLD)
+    d.text((x, y), t1, font=f1, fill=GOLD if dark else BLUE)
     cx = x + d.textlength(t1, font=f1) + 12
-    d.ellipse([cx, y + 14, cx + 6, y + 20], fill=MUTED)
-    d.text((cx + 18, y + 1), t2, font=f2, fill=MUTED)
+    d.ellipse([cx, y + 14, cx + 6, y + 20], fill=MUTED if dark else MUTED_D)
+    d.text((cx + 18, y + 1), t2, font=f2, fill=MUTED if dark else MUTED_D)
 
 
 # ===========================================================================
@@ -495,8 +537,140 @@ def _t_sistem(photo, headline, benefit, emph):
     return base.convert("RGB")
 
 
+# ===========================================================================
+#  AYDINLIK AİLE — isik / parlak / kutlama / an
+# ===========================================================================
+def _t_isik(photo, headline, benefit, emph):
+    """Açık zemin, merkez tipografi — court'un gündüz ikizi."""
+    base = Image.new("RGBA", (S, S), LIGHT_BG + (255,))
+    cu = S * 0.0115
+    ov = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    od = ImageDraw.Draw(ov)
+    _court_motif_col(od, (S - 100 * cu) / 2, S * 0.12, cu, NAVY, alpha=26, stroke=3)
+    base.alpha_composite(ov)
+    d = ImageDraw.Draw(base)
+
+    maxw = S - 2 * M
+    kf = F_TEXT(26, True)
+    kick = "Kulüp yönetim sistemi"
+    d.text(((S - d.textlength(kick, font=kf)) / 2, 236), kick, font=kf, fill=MUTED_D)
+
+    sz, lines = _mixed_wrap(d, headline, emph, 124, maxw, 3)
+    bf, bl = _fit_plain(d, benefit, 32, maxw - 120, 2)
+    head_h = int(_lh(F_DISPLAY(sz)) * 1.05) * len(lines)
+    y = 300
+    y = _draw_mixed(d, lines, sz, 0, y, align="center", width=S, ink=INK)
+    y += 24
+    for ln in bl:
+        d.text(((S - d.textlength(ln, font=bf)) / 2, y), ln, font=bf, fill=MUTED_D)
+        y += _lh(bf) + 9
+
+    pf = F_TEXT(30, True)
+    pt = "14 gün ücretsiz dene"
+    pw = d.textlength(pt, font=pf) + 76
+    ph = 76
+    px = (S - pw) / 2
+    py = y + 42
+    d.rounded_rectangle([px, py, px + pw, py + ph], radius=ph // 2, fill=BLUE)
+    d.text((px + 38, py + (ph - _lh(pf)) // 2), pt, font=pf, fill=(255, 255, 255))
+    _footer(d, S - M - 30, center=True, dark=False)
+    _brand(base, (S - 74 - 16 - int(d.textlength("kulups", font=F_TEXT(34, True)))) // 2, M - 22, dark_bg=False)
+    return base.convert("RGB")
+
+
+def _t_parlak(photo, headline, benefit, emph):
+    """Tam kanvas doğal renk foto + beyaza eriyen alt + lacivert başlık."""
+    im = _cover(_warm(photo), S, S)
+    w, h = im.size
+    mask = Image.new("L", (1, h))
+    px_ = mask.load()
+    for yy in range(h):
+        t = 0.0 if yy < h * 0.30 else (yy - h * 0.30) / (h * 0.44)
+        px_[0, yy] = int(255 * min(1.0, t ** 1.1))
+    im = Image.composite(Image.new("RGB", (S, S), LIGHT_BG), im, mask.resize((S, S)))
+    base = im.convert("RGBA")
+    d = ImageDraw.Draw(base)
+
+    maxw = S - 2 * M
+    sz, lines = _mixed_wrap(d, headline, emph, 112, maxw, 3)
+    bf, bl = _fit_plain(d, benefit, 31, maxw - 60, 2)
+    foot_y = S - M + 6
+    ben_h = (_lh(bf) + 8) * len(bl)
+    head_h = int(_lh(F_DISPLAY(sz)) * 1.04) * len(lines)
+    y0 = foot_y - 30 - ben_h - 20 - head_h
+
+    d.line([M, y0 - 24, M + 110, y0 - 24], fill=GOLD, width=5)
+    y = _draw_mixed(d, lines, sz, M, y0, ink=INK)
+    y += 18
+    for ln in bl:
+        d.text((M, y), ln, font=bf, fill=MUTED_D)
+        y += _lh(bf) + 8
+    _footer(d, foot_y, dark=False)
+    _brand(base, M, M - 18, dark_bg=False)
+    return base.convert("RGB")
+
+
+def _t_kutlama(photo, headline, benefit, emph):
+    """Üstte mutlu foto (doğal renk), altta beyaz panel — altın ayrım çizgisi."""
+    base = Image.new("RGBA", (S, S), LIGHT_BG + (255,))
+    cut = int(S * 0.56)
+    base.paste(_cover(_warm(photo), S, cut, focus=0.3), (0, 0))
+    d = ImageDraw.Draw(base)
+    d.rectangle([0, cut, S, cut + 5], fill=GOLD)
+
+    x = M
+    maxw = S - 2 * M
+    sz, lines = _mixed_wrap(d, headline, emph, 92, maxw, 2)
+    bf, bl = _fit_plain(d, benefit, 30, maxw, 1)   # tek satır — footer'la çakışma imkânsız
+    y = cut + 60
+    y = _draw_mixed(d, lines, sz, x, y, ink=INK)
+    y += 16
+    for ln in bl:
+        d.text((x, y), ln, font=bf, fill=MUTED_D)
+        y += _lh(bf) + 8
+    _footer(d, S - M - 24, x=x, dark=False)
+    _brand(base, M, M - 26, dark_bg=False)
+    return base.convert("RGB")
+
+
+def _t_an(photo, headline, benefit, emph):
+    """Polaroid 'an' kartı: açık zemin, çerçeveli eğik foto + merkez başlık."""
+    base = Image.new("RGBA", (S, S), LIGHT_BG + (255,))
+    cu = S * 0.009
+    ov = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    _court_motif_col(ImageDraw.Draw(ov), S * 0.3, S * 0.5, cu, NAVY, alpha=20, stroke=2)
+    base.alpha_composite(ov)
+
+    pw, phh = 470, 520
+    pol = Image.new("RGBA", (pw, phh), (255, 255, 255, 255))
+    pol.paste(_cover(_warm(photo), pw - 44, phh - 110, focus=0.28), (22, 22))
+    pol = pol.rotate(-3.4, expand=True, resample=Image.BICUBIC)
+    sh = Image.new("RGBA", pol.size, (0, 0, 0, 0))
+    ImageDraw.Draw(sh).rounded_rectangle([10, 16, pol.size[0] - 4, pol.size[1] - 2], 12, fill=(15, 23, 42, 60))
+    sh = sh.filter(ImageFilter.GaussianBlur(14))
+    px_ = (S - pol.size[0]) // 2
+    base.alpha_composite(sh, (px_, 118))
+    base.alpha_composite(pol, (px_, 104))
+
+    d = ImageDraw.Draw(base)
+    maxw = S - 2 * M
+    sz, lines = _mixed_wrap(d, headline, emph, 88, maxw, 2)
+    bf, bl = _fit_plain(d, benefit, 29, maxw - 80, 2)
+    y = 104 + pol.size[1] + 34
+    y = _draw_mixed(d, lines, sz, 0, y, align="center", width=S, ink=INK)
+    y += 12
+    for ln in bl:
+        d.text(((S - d.textlength(ln, font=bf)) / 2, y), ln, font=bf, fill=MUTED_D)
+        y += _lh(bf) + 7
+    _footer(d, S - M - 22, center=True, dark=False)
+    _brand(base, M, M - 34, dark_bg=False)
+    return base.convert("RGB")
+
+
 _RENDER = {"poster": _t_poster, "court": _t_court, "duo": _t_duo,
-           "stat": _t_stat, "sistem": _t_sistem}
+           "stat": _t_stat, "sistem": _t_sistem,
+           "isik": _t_isik, "parlak": _t_parlak,
+           "kutlama": _t_kutlama, "an": _t_an}
 
 
 # ===========================================================================
@@ -512,16 +686,31 @@ def compose(concept: dict, *, pillar: str = "", template: str | None = None,
     tpls = [t for t in TEMPLATES if t not in (exclude_templates or set())] or list(TEMPLATES)
     tpl = template if template in TEMPLATES else tpls[rnd.randrange(len(tpls))]
 
-    pool = GENEL if tpl == "sistem" else (POOL.get(pillar) or [p for v in POOL.values() for p in v])
+    if tpl == "sistem":
+        pool = GENEL
+    elif tpl in ("kutlama", "an"):
+        pool = MUTLU
+    else:
+        pool = POOL.get(pillar) or [p for v in POOL.values() for p in v]
     headline, benefit, emph = pool[rnd.randrange(len(pool))]
 
-    photo_name, photo = _pick_photo(pillar, rnd, exclude_photos or set())
+    if tpl in LIGHT_TPLS:
+        photo_name, photo = _pick_mood_photo(rnd, exclude_photos or set())
+    else:
+        photo_name, photo = _pick_photo(pillar, rnd, exclude_photos or set())
     img = _RENDER[tpl](photo, headline, benefit, emph)
 
     buf = io.BytesIO()
     img.save(buf, "JPEG", quality=92, optimize=True)
     log.info("kart hazır: şablon=%s foto=%s başlık=%r", tpl, photo_name, headline)
     return buf.getvalue(), tpl, photo_name
+
+
+def _pick_mood_photo(rnd, exclude):
+    files = {p.stem: p for p in sorted(PHOTO_DIR.glob("*.jpg"))}
+    cands = [n for n in MOOD_PHOTOS if n in files and n not in exclude]         or [n for n in MOOD_PHOTOS if n in files] or list(files)
+    name = cands[rnd.randrange(len(cands))]
+    return name, Image.open(files[name]).convert("RGB")
 
 
 def _pick_photo(pillar, rnd, exclude):
