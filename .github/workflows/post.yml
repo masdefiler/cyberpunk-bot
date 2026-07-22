@@ -3,10 +3,12 @@ name: Gönderi Yayınla
 # Günde iki kez otomatik + istenildiğinde manuel.
 # Cron UTC'dir. Vancouver (yaz, PDT=UTC-7) 09:00 → 16:00 UTC, 19:00 → 02:00 UTC.
 # NOT: Actions cron DST bilmez; kışın (PST) yerel saatler 1 saat kayar.
+# ⛔ 2026-07-22: DOĞRUDAN YAYIN DURDURULDU. Kullanıcı onayı olmadan hiçbir gönderi
+#    paylaşılmıyor. Bot artık taslak üretip kulups.com yönetim paneline gönderiyor
+#    (onay kuyruğu); yayın yalnızca panelden "Onayla & Paylaş" ile yapılır.
 on:
   schedule:
-    - cron: "0 16 * * *"   # ~09:00 Vancouver
-    - cron: "0 2 * * *"    # ~19:00 Vancouver (bir önceki günün akşamı)
+    - cron: "0 16 * * *"   # ~09:00 Vancouver — TASLAK üretir, yayınlamaz
   workflow_dispatch:
     inputs:
       count:
@@ -47,7 +49,7 @@ jobs:
           TOGETHER_API_KEY: ${{ secrets.TOGETHER_API_KEY }}
           FAL_KEY: ${{ secrets.FAL_KEY }}
           REPO_SLUG: ${{ github.repository }}
-        run: python -m src.pipeline --publish --count "${{ github.event.inputs.count || '1' }}"
+        run: python -m src.pipeline --queue --count "${{ github.event.inputs.count || '1' }}"
 
       - name: Durumu (state.db) kaydet — rotasyon ve dedup kalıcı olsun
         if: always()
