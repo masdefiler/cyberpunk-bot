@@ -1,431 +1,452 @@
-"""Gönderi görseli: GERÇEK stok fotoğraf + 4 profesyonel şablon (Pillow).
+"""Gönderi görseli — "Saha Disiplini" tasarım felsefesi (design/PHILOSOPHY.md).
 
-Neden böyle: AI üretimi arka planlar sahte duruyordu ve tek şablon her gönderiyi
-aynı gösteriyordu. Artık `assets/photos/` altındaki gerçek basketbol fotoğrafları
-kullanılıyor ve 4 farklı düzenden biri seçiliyor:
+İlkeler (canvas-design skill'inden):
+  · Az kelime, büyük ses: dev sıkışık tipografi (Big Shoulders) + fısıltı etiketler (Work Sans)
+  · Tek vurgu kelimesi altın Instrument Serif italik — cümlenin kalbi
+  · Fotoğraf ham girmez: lacivert DUOTONE — stok görünümü ölür, marka dokusu doğar
+  · Saha çizgisi motifleri (yay/çember/köşe) düşük opaklıkta zemine işlenir
+  · Geniş kenar payları; hiçbir öge taşmaz/çakışmaz; boşluk kazanılmış alandır
 
-    hero    — tam fotoğraf + alt degrade + editoryal metin bloğu
-    marker  — başlık renkli "fosforlu" bloklar içinde, koyu zemin + fotoğraf
-    split   — üstte marka renginde panel + yay kesimli fotoğraf altta
-    mockup  — telefon maketi (gerçek kulups ekranı çizilir) + mesaj bandı
+Karta basılan HER metin bu dosyadaki KÜRATÖRLÜ havuzdan gelir (imla garantili);
+LLM yalnız Instagram caption'ı yazar, kartın yüzüne dokunamaz.
 
-Tümü 1080×1080. Türkçe metin JSX/CSS değil doğrudan Pillow ile basılır; büyük
-harfe ÇEVİRME yapılmaz (İ/ı bozulmasın).
+4 şablon: poster / court / duo / stat — pipeline aynı partide şablonu ve
+fotoğrafı TEKRARLAMAZ (exclude parametreleri).
 """
 from __future__ import annotations
 
 import hashlib
+import io
 import random
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFilter, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 from . import config
 
 log = config.get_logger("card")
 ROOT = Path(__file__).resolve().parent.parent
 PHOTO_DIR = ROOT / "assets" / "photos"
+FONT_DIR = ROOT / "assets" / "fonts"
 LOGO_PATH = ROOT / "assets" / "logo.png"
 
-S = 1080  # kare gönderi
+S = 1080
+M = 92          # küresel kenar payı — kimse bunun içine giremez
 
-# ---- marka ----
 NAVY = (15, 23, 42)
-NAVY2 = (22, 35, 63)
-BLUE = (26, 86, 219)
-BLUE2 = (59, 130, 246)
+NAVY_SOFT = (30, 41, 59)
+PAPER = (241, 245, 249)     # kırık beyaz
 GOLD = (212, 169, 79)
-WHITE = (241, 245, 249)
+BLUE = (26, 86, 219)
 MUTED = (148, 163, 184)
-GREEN = (16, 185, 129)
-AMBER = (180, 83, 9)
-INK = (30, 41, 59)
 
-TEMPLATES = ("hero", "marker", "split", "mockup")
+TEMPLATES = ("poster", "court", "duo", "stat")
 
-# Konu → tercih edilen fotoğraflar (yoksa tüm havuzdan seçilir)
-PHOTO_HINTS = {
-    "aidat": ["huddle", "kids-coach", "game"],
-    "yoklama": ["kids-coach", "kids-play", "huddle"],
-    "veli": ["kids-coach", "kids-duel", "huddle"],
-    "gelişim": ["kids-duel", "dunk", "game"],
-    "taktik": ["huddle", "game", "kids-coach"],
-    "maç": ["game", "dunk", "hoop"],
-    "antrenman": ["kids-play", "kids-duel", "kids-coach"],
+# ---------------------------------------------------------------------------
+#  KÜRATÖRLÜ METİN HAVUZU — (başlık, fayda, vurgu-kelime)
+#  Vurgu kelime başlıkta AYNEN geçmeli (küçük/büyük duyarsız eşleşir).
+# ---------------------------------------------------------------------------
+POOL: dict[str, list[tuple[str, str, str]]] = {
+    "A": [
+        ("Yoklama defteri emekli oldu",
+         "Katılım tek dokunuşla işlenir, devamsızlık raporu kendiliğinden çıkar.", "emekli"),
+        ("Program artık kaybolmuyor",
+         "Antrenman ve maç takvimi herkesin panelinde; değişiklik anında bildirilir.", "kaybolmuyor"),
+        ("Bütün kadro tek ekranda",
+         "Sporcu kartları, forma numaraları ve veli bilgileri hep elinizin altında.", "tek"),
+    ],
+    "B": [
+        ("Gelişimi hissetme, ölç",
+         "Boy, kilo ve performans ölçümleri; aylar içindeki ilerleme grafikte.", "ölç"),
+        ("Her sporcuya kendi programı",
+         "Bireysel gelişim programını ata; sporcu kendi panelinden takip etsin.", "kendi"),
+        ("Sakatlık takibi kayıt altında",
+         "Sakatlık geçmişi ve dönüş tarihi tek yerde; tahmine yer yok.", "kayıt"),
+    ],
+    "C": [
+        ("Aidat kim ödedi, kim ödemedi?",
+         "Tüm ödemeler tek ekranda; veliye kartla ödeme bağlantısı gider.", "ödedi"),
+        ("Tahsilatı kovalamayı bırak",
+         "iyzico ile kartla tahsilat — para doğrudan kulübün hesabına geçer.", "bırak"),
+        ("Ay sonu hesabı dert değil",
+         "Kim ödedi, kim gecikti: durum her an güncel, rapor hazır.", "dert"),
+    ],
+    "D": [
+        ("Veliler sormadan bilsin",
+         "Program, duyuru ve gelişim veli panelinde; 'haberim yoktu' devri bitti.", "sormadan"),
+        ("Evrak klasörleri rafta kalsın",
+         "Lisans ve belgeler dijital arşivde; aradığınız evrak iki saniyede önünüzde.", "rafta"),
+        ("Duyuru herkese aynı anda",
+         "Tek duyuru; bütün veliler ve sporcular anında haberdar.", "aynı"),
+    ],
+    "E": [
+        ("Oyununu çiz, sahaya taşı",
+         "Sürükle-bırak taktik tahtası: çiz, oynat, yazdır.", "çiz"),
+        ("Taktik tahtası hep ücretsiz",
+         "Antrenörlere üyeliksiz ve sınırsız; hemen çizmeye başla.", "ücretsiz"),
+        ("Hücumu kâğıtta bırakma",
+         "Kurduğun oyunu kaydet, takımına gönder, antrenmanda oynat.", "kâğıtta"),
+    ],
+}
+
+PILLAR_PHOTOS = {
+    "A": ["kids-coach", "kids-play", "huddle"],
+    "B": ["kids-duel", "dunk", "kids-play"],
+    "C": ["huddle", "game", "kids-coach"],
+    "D": ["kids-coach", "huddle", "kids-play"],
+    "E": ["game", "hoop", "dunk2"],
 }
 
 
-# ===========================================================================
-#  Genel API
-# ===========================================================================
-def render_card(headline: str, benefit: str, *, template: str | None = None,
-                seed: str = "", photo: str | None = None) -> Image.Image:
-    """Başlık + fayda metninden 1080×1080 gönderi görseli üretir."""
-    rnd = random.Random(hashlib.sha1((seed or headline).encode("utf-8")).hexdigest())
-    template = template or TEMPLATES[rnd.randrange(len(TEMPLATES))]
-    img = _pick_photo(headline + " " + benefit, photo, rnd)
-
-    if template == "marker":
-        return _t_marker(img, headline, benefit)
-    if template == "split":
-        return _t_split(img, headline, benefit)
-    if template == "mockup":
-        return _t_mockup(img, headline, benefit)
-    return _t_hero(img, headline, benefit)
+# ---------------------------------------------------------------------------
+#  Fontlar (repo içi — Actions'ta da aynı)
+# ---------------------------------------------------------------------------
+def _font(name: str, size: int):
+    p = FONT_DIR / name
+    try:
+        return ImageFont.truetype(str(p), size)
+    except Exception:
+        return ImageFont.load_default()
 
 
-def compose(concept: dict, *, template: str | None = None) -> tuple[bytes, str]:
-    """concept → (JPEG baytları, kullanılan şablon adı). Pipeline bunu çağırır."""
-    import io
-    headline = concept.get("kart_baslik") or concept.get("konsept_basligi") or ""
-    benefit = concept.get("kart_fayda") or ""
-    seed = concept.get("konsept_basligi") or headline
-    rnd = random.Random(hashlib.sha1(seed.encode("utf-8")).hexdigest())
-    tpl = template or TEMPLATES[rnd.randrange(len(TEMPLATES))]
-    img = render_card(headline, benefit, template=tpl, seed=seed)
-    buf = io.BytesIO()
-    img.save(buf, "JPEG", quality=92, optimize=True)
-    log.info("kart hazır: şablon=%s başlık=%r", tpl, headline[:48])
-    return buf.getvalue(), tpl
+def F_DISPLAY(sz):  # dev başlık — sıkışık gövde
+    return _font("BigShoulders-Bold.ttf", sz)
 
 
-# ===========================================================================
-#  ŞABLON 1 — hero: tam fotoğraf + editoryal metin
-# ===========================================================================
-def _t_hero(photo: Image.Image, headline: str, benefit: str) -> Image.Image:
-    img = _cover(photo, S, S)
-    img = _gradient(img, start=0.34, top_a=0.18, bot_a=0.95)
-    d = ImageDraw.Draw(img)
-    m = 84
-    maxw = S - 2 * m
-
-    hf, hl = _fit(d, headline, 78, maxw, 3, True)
-    bf, bl = _fit(d, benefit, 34, maxw, 2, False)
-    hlh, blh = _lh(hf) + 10, _lh(bf) + 8
-
-    cta_h = 66
-    y = S - m - cta_h - 34 - (blh * len(bl)) - 26 - (hlh * len(hl))
-
-    # altın aksan
-    d.rounded_rectangle([m, y - 34, m + 104, y - 34 + 9], radius=4, fill=GOLD)
-    for ln in hl:
-        d.text((m, y), ln, font=hf, fill=WHITE)
-        y += hlh
-    y += 26
-    for ln in bl:
-        d.text((m, y), ln, font=bf, fill=(203, 213, 225))
-        y += blh
-
-    _cta_row(d, m, S - m - cta_h, "kulups.com", "14 gün ücretsiz")
-    return _logo_lockup(img, m, m, wordmark=True)
+def F_ACCENT(sz):   # altın vurgu — italik serif
+    return _font("InstrumentSerif-Italic.ttf", sz)
 
 
-# ===========================================================================
-#  ŞABLON 2 — marker: fosforlu başlık blokları
-# ===========================================================================
-def _t_marker(photo: Image.Image, headline: str, benefit: str) -> Image.Image:
-    img = _cover(photo, S, S)
-    # sağ-alt fotoğraf kalsın, sol-üst koyulaşsın
-    ov = Image.new("RGB", (S, S), NAVY)
-    mask = Image.linear_gradient("L").rotate(-32, resample=Image.BICUBIC, expand=False)
-    mask = mask.resize((S, S)).point(lambda v: int(255 - v * 0.62))
-    img = Image.composite(ov, img, mask)
-    img = _gradient(img, start=0.55, top_a=0.0, bot_a=0.72)
-
-    d = ImageDraw.Draw(img)
-    m = 84
-    maxw = S - 2 * m - 40
-
-    hf, hl = _fit(d, headline, 74, maxw, 3, True)
-    y = 260
-    for ln in hl:
-        tw = d.textlength(ln, font=hf)
-        h = _lh(hf)
-        d.rounded_rectangle([m - 18, y - 12, m + tw + 26, y + h + 10], radius=14, fill=BLUE)
-        d.text((m, y), ln, font=hf, fill=(255, 255, 255))
-        y += h + 22
-
-    bf, bl = _fit(d, benefit, 34, maxw, 3, False)
-    y += 16
-    for ln in bl:
-        d.text((m, y), ln, font=bf, fill=(226, 232, 240))
-        y += _lh(bf) + 8
-
-    _pill(d, m, S - 84 - 74, "14 gün ücretsiz dene", fill=GOLD, fg=NAVY, size=32)
-    return _logo_lockup(img, m, m, wordmark=True)
+def F_TEXT(sz, bold=False):
+    return _font("WorkSans-Bold.ttf" if bold else "WorkSans-Regular.ttf", sz)
 
 
-# ===========================================================================
-#  ŞABLON 3 — split: marka paneli + yay kesimli fotoğraf
-# ===========================================================================
-def _t_split(photo: Image.Image, headline: str, benefit: str) -> Image.Image:
-    cut = int(S * 0.60)
-    img = Image.new("RGB", (S, S), NAVY)
-
-    # üst: köşegen marka degradesi
-    top = Image.new("RGB", (S, cut + 90), NAVY)
-    td = ImageDraw.Draw(top)
-    for i in range(cut + 90):
-        t = i / (cut + 90)
-        td.line([(0, i), (S, i)],
-                fill=(int(15 + (26 - 15) * t), int(23 + (86 - 23) * t), int(42 + (219 - 42) * t)))
-    img.paste(top, (0, 0))
-
-    # alt: fotoğraf, üst kenarı yay ile kesilmiş
-    ph = _cover(photo, S, S - cut + 80)
-    m_ = Image.new("L", ph.size, 0)
-    md = ImageDraw.Draw(m_)
-    md.rectangle([0, 90, S, ph.size[1]], fill=255)
-    md.ellipse([-S * 0.15, -40, S * 1.15, 220], fill=255)
-    img.paste(ph, (0, cut - 80), m_)
-
-    d = ImageDraw.Draw(img)
-    m = 92
-    maxw = S - 2 * m
-
-    hf, hl = _fit(d, headline, 72, maxw, 3, True)
-    bf, bl = _fit(d, benefit, 32, maxw, 2, False)
-    block = _lh(hf) * len(hl) + 24 + (_lh(bf) + 6) * len(bl)
-    y = 236
-    for ln in hl:
-        d.text(((S - d.textlength(ln, font=hf)) / 2, y), ln, font=hf, fill=WHITE)
-        y += _lh(hf) + 6
-    y += 18
-    for ln in bl:
-        d.text(((S - d.textlength(ln, font=bf)) / 2, y), ln, font=bf, fill=(191, 205, 226))
-        y += _lh(bf) + 6
-
-    _pill(d, None, y + 26, "14 gün ücretsiz dene", fill=(255, 255, 255), fg=BLUE, size=32)
-    img = _logo_lockup(img, None, 92, wordmark=True, center=True)
-    return img
+def _lh(f):
+    a, d = f.getmetrics()
+    return a + d
 
 
-# ===========================================================================
-#  ŞABLON 4 — mockup: telefon maketi + gerçek kulups ekranı
-# ===========================================================================
-def _t_mockup(photo: Image.Image, headline: str, benefit: str) -> Image.Image:
-    img = _cover(photo, S, S)
-    img = Image.blend(img, Image.new("RGB", (S, S), NAVY), 0.76)
-    img = _gradient(img, start=0.0, top_a=0.25, bot_a=0.55)
-
-    # telefon
-    pw, ph = 386, 720
-    px, py = 74, (S - ph) // 2 + 26
-    d = ImageDraw.Draw(img)
-    d.rounded_rectangle([px - 10, py - 10, px + pw + 10, py + ph + 10], radius=54,
-                        fill=(11, 17, 32), outline=(51, 65, 85), width=3)
-    screen = _phone_screen(pw - 22, ph - 22, headline + " " + benefit)
-    m_ = Image.new("L", screen.size, 0)
-    ImageDraw.Draw(m_).rounded_rectangle([0, 0, screen.size[0], screen.size[1]], radius=42, fill=255)
-    img.paste(screen, (px + 11, py + 11), m_)
-
-    # sağ metin sütunu
-    tx = px + pw + 66
-    maxw = S - tx - 74
-    hf, hl = _fit(d, headline, 58, maxw, 4, True)
-    bf, bl = _fit(d, benefit, 29, maxw, 4, False)
-    block = (_lh(hf) + 8) * len(hl) + 22 + (_lh(bf) + 7) * len(bl) + 96
-    y = (S - block) // 2 + 20
-
-    d.rounded_rectangle([tx, y - 46, tx + 96, y - 46 + 8], radius=4, fill=GOLD)
-    for ln in hl:
-        d.text((tx, y), ln, font=hf, fill=WHITE)
-        y += _lh(hf) + 8
-    y += 22
-    for ln in bl:
-        d.text((tx, y), ln, font=bf, fill=(203, 213, 225))
-        y += _lh(bf) + 7
-    _pill(d, tx, y + 26, "kulups.com", fill=BLUE, fg=(255, 255, 255), size=30)
-
-    return _logo_lockup(img, 74, 64, wordmark=True)
+# ---------------------------------------------------------------------------
+#  Karışık-font başlık: vurgu kelime altın serif italik, kalan dev display
+# ---------------------------------------------------------------------------
+def _mixed_wrap(d, text: str, emph: str, size: int, max_w: int, max_lines: int):
+    """Kelimeleri (font, genişlik) ile ölçerek satırlara böler; sığana dek küçülür."""
+    for sz in range(size, int(size * 0.5), -6):
+        df, af = F_DISPLAY(sz), F_ACCENT(int(sz * 0.94))
+        words = []
+        for w in text.split():
+            emp = emph and emph.lower() in w.lower()
+            f = af if emp else df
+            words.append((w, emp, d.textlength(w + " ", font=f)))
+        lines, cur, cw = [], [], 0.0
+        for w, emp, ww in words:
+            if cw + ww > max_w and cur:
+                lines.append(cur)
+                cur, cw = [], 0.0
+            cur.append((w, emp))
+            cw += ww
+        if cur:
+            lines.append(cur)
+        if len(lines) <= max_lines:
+            return sz, lines
+    return int(size * 0.5), lines  # son deneme ne verdiyse
 
 
-def _phone_screen(w: int, h: int, topic: str) -> Image.Image:
-    """Telefon ekranı: gerçek kulups panel görünümü (aidat ya da yoklama)."""
-    yoklama = any(k in topic.lower() for k in ("yoklama", "katılım", "devamsız"))
-    sc = Image.new("RGB", (w, h), (244, 246, 250))
-    d = ImageDraw.Draw(sc)
-    f = lambda k, b=False: _font(max(9, int(w * k)), b)
-
-    # durum çubuğu
-    d.text((22, 18), "kulups", font=f(0.058, True), fill=BLUE)
-    d.rounded_rectangle([w - 62, 20, w - 26, 36], radius=4, outline=(51, 65, 85), width=2)
-    d.rounded_rectangle([w - 59, 23, w - 40, 33], radius=2, fill=GREEN)
-
-    # başlık bandı
-    top = 62
-    hh = int(w * 0.15)
-    d.rounded_rectangle([16, top, w - 16, top + hh], radius=16, fill=BLUE)
-    d.text((34, top + hh * 0.28), "Yoklama" if yoklama else "Aidat Takibi",
-           font=f(0.055, True), fill=(255, 255, 255))
-    d.text((w - 34 - d.textlength("U14", font=f(0.042, True)), top + hh * 0.34), "U14",
-           font=f(0.042, True), fill=(219, 234, 254))
-
-    rows = [("Ali Kaya", True), ("Zeynep Demir", True), ("Mert Yıldız", True),
-            ("Elif Şahin", False), ("Kaan Aydın", True)]
-    y = top + hh + 14
-    rh = int(h * 0.098)
-    for ad, ok in rows:
-        d.rounded_rectangle([16, y, w - 16, y + rh], radius=12, fill=(255, 255, 255))
-        ini = "".join(p[0] for p in ad.split())
-        d.ellipse([32, y + rh * 0.24, 32 + rh * 0.5, y + rh * 0.74], fill=(230, 237, 251))
-        d.text((32 + rh * 0.14, y + rh * 0.34), ini, font=f(0.032, True), fill=BLUE)
-        d.text((32 + rh * 0.66, y + rh * 0.32), ad, font=f(0.042, True), fill=INK)
-        if yoklama:
-            txt, bg, fg = ("Katıldı", (220, 252, 231), (4, 120, 87)) if ok else ("Gelmedi", (254, 226, 226), (153, 27, 27))
-        else:
-            txt, bg, fg = ("Ödendi", (220, 252, 231), (4, 120, 87)) if ok else ("Bekliyor", (255, 247, 237), AMBER)
-        tw = d.textlength(txt, font=f(0.032, True))
-        d.rounded_rectangle([w - 34 - tw - 26, y + rh * 0.28, w - 30, y + rh * 0.72], radius=999, fill=bg)
-        d.text((w - 34 - tw - 13, y + rh * 0.36), txt, font=f(0.032, True), fill=fg)
-        y += rh + 10
-
-    # özet
-    d.rounded_rectangle([16, y + 6, w - 16, y + 6 + int(h * 0.1)], radius=14, fill=(248, 250, 252))
-    lbl = "Bugün katılım" if yoklama else "Bu ay tahsil edilen"
-    val = "4 / 5" if yoklama else "3.000 ₺"
-    d.text((34, y + 6 + h * 0.032), lbl, font=f(0.036), fill=(71, 85, 105))
-    vw = d.textlength(val, font=f(0.052, True))
-    d.text((w - 34 - vw, y + 6 + h * 0.026), val, font=f(0.052, True), fill=GREEN)
-    return sc
+def _draw_mixed(d, lines, sz, x, y, *, align="left", width=0, gap=1.04):
+    df, af = F_DISPLAY(sz), F_ACCENT(int(sz * 0.94))
+    lh = int(_lh(df) * gap)
+    for ln in lines:
+        total = sum(d.textlength(w + " ", font=(af if e else df)) for w, e in ln)
+        cx = x + (width - total) / 2 if align == "center" else x
+        for w, e in ln:
+            f = af if e else df
+            # serif italiği display satırıyla taban hizasına oturt
+            oy = _lh(df) - _lh(f) if e else 0
+            d.text((cx, y + oy), w, font=f, fill=GOLD if e else PAPER)
+            cx += d.textlength(w + " ", font=f)
+        y += lh
+    return y
 
 
-# ===========================================================================
-#  Ortak parçalar
-# ===========================================================================
-def _pick_photo(topic: str, forced: str | None, rnd: random.Random) -> Image.Image:
-    files = sorted(PHOTO_DIR.glob("*.jpg"))
-    if not files:
-        raise FileNotFoundError(f"stok fotoğraf yok: {PHOTO_DIR}")
-    if forced:
-        p = PHOTO_DIR / f"{forced}.jpg"
-        if p.exists():
-            return Image.open(p).convert("RGB")
-    low = topic.lower()
-    for key, names in PHOTO_HINTS.items():
-        if key in low:
-            cands = [PHOTO_DIR / f"{n}.jpg" for n in names]
-            cands = [c for c in cands if c.exists()]
-            if cands:
-                return Image.open(rnd.choice(cands)).convert("RGB")
-    return Image.open(rnd.choice(files)).convert("RGB")
+def _fit_plain(d, text, size, max_w, max_lines, *, bold=False):
+    for sz in range(size, 14, -2):
+        f = F_TEXT(sz, bold)
+        words, lines, cur = text.split(), [], ""
+        for w in words:
+            t = (cur + " " + w).strip()
+            if d.textlength(t, font=f) <= max_w or not cur:
+                cur = t
+            else:
+                lines.append(cur)
+                cur = w
+        if cur:
+            lines.append(cur)
+        if len(lines) <= max_lines:
+            return f, lines
+    return f, lines[:max_lines]
 
 
-def _cover(img: Image.Image, w: int, h: int) -> Image.Image:
+# ---------------------------------------------------------------------------
+#  Fotoğraf: lacivert duotone
+# ---------------------------------------------------------------------------
+def _duotone(img: Image.Image) -> Image.Image:
+    g = ImageOps.autocontrast(img.convert("L"), cutoff=1)
+    return ImageOps.colorize(g, black=(8, 13, 28), white=(214, 224, 240),
+                             mid=(44, 62, 96)).convert("RGB")
+
+
+def _cover(img, w, h, focus=0.32):
     r = max(w / img.width, h / img.height)
     im = img.resize((max(w, int(img.width * r) + 1), max(h, int(img.height * r) + 1)), Image.LANCZOS)
     x = (im.width - w) // 2
-    y = int((im.height - h) * 0.34)   # yüzler üst-orta kalsın
+    y = int((im.height - h) * focus)
     return im.crop((x, y, x + w, y + h))
 
 
-def _gradient(img: Image.Image, *, start: float, top_a: float, bot_a: float) -> Image.Image:
+def _fade_bottom(img, start=0.42, top_a=0.04, bot_a=0.94):
     w, h = img.size
     mask = Image.new("L", (1, h))
     px = mask.load()
     for y in range(h):
         t = 0.0 if y < h * start else (y - h * start) / max(1.0, h * (1 - start))
-        px[0, y] = int(255 * min(1.0, top_a + (bot_a - top_a) * (t ** 1.3)))
+        px[0, y] = int(255 * min(1.0, top_a + (bot_a - top_a) * (t ** 1.25)))
     return Image.composite(Image.new("RGB", (w, h), NAVY), img, mask.resize((w, h)))
 
 
-def _logo_lockup(img: Image.Image, x: int | None, y: int, *, wordmark: bool = False,
-                 center: bool = False) -> Image.Image:
-    """Beyaz app-icon çipi içinde kalkan + isteğe bağlı 'kulups' yazısı."""
-    chip = 96
-    base = img.convert("RGBA")
+# ---------------------------------------------------------------------------
+#  Saha motifleri + marka kilidi
+# ---------------------------------------------------------------------------
+def _court_lines(d: ImageDraw.ImageDraw, alpha=46, stroke=3):
+    """Zemine işlenen saha dili: merkez çember + yaylar + köşe işaretleri."""
+    col = GOLD + (alpha,)
+    d.arc([S * 0.56, -S * 0.34, S * 1.34, S * 0.44], 20, 200, fill=col, width=stroke)
+    d.arc([-S * 0.30, S * 0.62, S * 0.42, S * 1.34], 180, 40, fill=col, width=stroke)
+    d.ellipse([S * 0.40, S * 0.40, S * 0.60, S * 0.60], outline=GOLD + (max(20, alpha - 16),), width=stroke)
+    ln = 26
+    for cx, cy, dx, dy in ((M, M, 1, 1), (S - M, M, -1, 1), (M, S - M, 1, -1), (S - M, S - M, -1, -1)):
+        d.line([cx, cy, cx + dx * ln, cy], fill=col, width=stroke)
+        d.line([cx, cy, cx, cy + dy * ln], fill=col, width=stroke)
+
+
+def _brand(base: Image.Image, x: int, y: int, *, dark_bg: bool = True, chip: int = 74):
+    """Beyaz çipte kalkan + 'kulups' kelimesi — küçük, kesin, köşede."""
     d = ImageDraw.Draw(base)
-    wf = _font(40, True)
-    total = chip + (14 + int(d.textlength("kulups", font=wf)) if wordmark else 0)
-    if center or x is None:
-        x = (S - total) // 2
-    d.rounded_rectangle([x, y, x + chip, y + chip], radius=26, fill=(255, 255, 255, 240))
+    d.rounded_rectangle([x, y, x + chip, y + chip], radius=int(chip * 0.28), fill=(255, 255, 255))
     if LOGO_PATH.exists():
         lg = Image.open(LOGO_PATH).convert("RGBA")
         k = int(chip * 0.68)
         r = k / max(lg.size)
         lg = lg.resize((max(1, int(lg.width * r)), max(1, int(lg.height * r))), Image.LANCZOS)
-        base.alpha_composite(lg, (x + (chip - lg.width) // 2, y + (chip - lg.height) // 2))
-    if wordmark:
-        d = ImageDraw.Draw(base)
-        d.text((x + chip + 14, y + (chip - _lh(wf)) // 2 - 2), "kulups", font=wf, fill=(255, 255, 255, 245))
+        base.alpha_composite(lg.convert("RGBA"), (x + (chip - lg.width) // 2, y + (chip - lg.height) // 2))
+    wf = F_TEXT(34, bold=True)
+    d = ImageDraw.Draw(base)
+    d.text((x + chip + 16, y + (chip - _lh(wf)) // 2), "kulups",
+           font=wf, fill=PAPER if dark_bg else NAVY)
+
+
+def _footer(d, y, *, center=False, x=M):
+    """Alt satır: kulups.com — altın nokta — 14 gün ücretsiz."""
+    f1, f2 = F_TEXT(30, True), F_TEXT(28)
+    t1, t2 = "kulups.com", "14 gün ücretsiz"
+    w = d.textlength(t1, font=f1) + 30 + d.textlength(t2, font=f2)
+    if center:
+        x = (S - w) / 2
+    d.text((x, y), t1, font=f1, fill=GOLD)
+    cx = x + d.textlength(t1, font=f1) + 12
+    d.ellipse([cx, y + 14, cx + 6, y + 20], fill=MUTED)
+    d.text((cx + 18, y + 1), t2, font=f2, fill=MUTED)
+
+
+# ===========================================================================
+#  ŞABLON: poster — tam duotone foto, dev başlık altta
+# ===========================================================================
+def _t_poster(photo, headline, benefit, emph):
+    im = _fade_bottom(_duotone(_cover(photo, S, S)))
+    base = im.convert("RGBA")
+    ov = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    _court_lines(ImageDraw.Draw(ov), alpha=40)
+    base.alpha_composite(ov)
+    d = ImageDraw.Draw(base)
+
+    maxw = S - 2 * M
+    sz, lines = _mixed_wrap(d, headline, emph, 118, maxw, 3)
+    bf, bl = _fit_plain(d, benefit, 32, maxw - 40, 2)
+    foot_y = S - M - 34
+    ben_h = (_lh(bf) + 8) * len(bl)
+    head_h = int(_lh(F_DISPLAY(sz)) * 1.04) * len(lines)
+    y0 = foot_y - 26 - ben_h - 22 - head_h
+
+    d.line([M, y0 - 26, M + 110, y0 - 26], fill=GOLD, width=5)
+    y = _draw_mixed(d, lines, sz, M, y0)
+    y += 20
+    for ln in bl:
+        d.text((M, y), ln, font=bf, fill=(203, 213, 225))
+        y += _lh(bf) + 8
+    _footer(d, foot_y)
+    _brand(base, M, M - 18)
     return base.convert("RGB")
 
 
-def _pill(d: ImageDraw.ImageDraw, x: int | None, y: int, text: str, *, fill, fg, size: int):
-    f = _font(size, True)
-    tw = d.textlength(text, font=f)
-    pad_x, h = 34, int(size * 2.3)
-    w = tw + pad_x * 2
-    if x is None:
-        x = int((S - w) / 2)
-    d.rounded_rectangle([x, y, x + w, y + h], radius=h // 2, fill=fill)
-    d.text((x + pad_x, y + (h - _lh(f)) // 2), text, font=f, fill=fg)
-    return y + h
+# ===========================================================================
+#  ŞABLON: court — düz zemin, merkez tipografi, saha motifi
+# ===========================================================================
+def _t_court(photo, headline, benefit, emph):
+    base = Image.new("RGBA", (S, S), NAVY + (255,))
+    ov = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    _court_lines(ImageDraw.Draw(ov), alpha=58, stroke=3)
+    base.alpha_composite(ov)
+    d = ImageDraw.Draw(base)
+
+    maxw = S - 2 * M
+    sz, lines = _mixed_wrap(d, headline, emph, 128, maxw, 3)
+    bf, bl = _fit_plain(d, benefit, 33, maxw - 120, 2)
+    head_h = int(_lh(F_DISPLAY(sz)) * 1.05) * len(lines)
+    ben_h = (_lh(bf) + 9) * len(bl)
+    pill_h = 78
+    total = head_h + 30 + ben_h + 44 + pill_h
+    y = (S - total) // 2 + 26
+
+    kf = F_TEXT(26, True)
+    kick = "Kulüp yönetim sistemi"
+    d.text(((S - d.textlength(kick, font=kf)) / 2, y - 66), kick, font=kf, fill=MUTED)
+    y = _draw_mixed(d, lines, sz, 0, y, align="center", width=S)
+    y += 26
+    for ln in bl:
+        d.text(((S - d.textlength(ln, font=bf)) / 2, y), ln, font=bf, fill=(203, 213, 225))
+        y += _lh(bf) + 9
+
+    pf = F_TEXT(30, True)
+    pt = "14 gün ücretsiz dene"
+    pw = d.textlength(pt, font=pf) + 76
+    px = (S - pw) / 2
+    py = y + 40
+    d.rounded_rectangle([px, py, px + pw, py + pill_h], radius=pill_h // 2, fill=BLUE)
+    d.text((px + 38, py + (pill_h - _lh(pf)) // 2), pt, font=pf, fill=(255, 255, 255))
+    df = F_TEXT(27, True)
+    d.text(((S - d.textlength("kulups.com", font=df)) / 2, S - M - 30), "kulups.com", font=df, fill=GOLD)
+    _brand(base, (S - 74 - 16 - int(d.textlength("kulups", font=F_TEXT(34, True)))) // 2, M - 22)
+    return base.convert("RGB")
 
 
-def _cta_row(d: ImageDraw.ImageDraw, x: int, y: int, domain: str, note: str):
-    df = _font(36, True)
-    nf = _font(30, False)
-    d.text((x, y + 12), domain, font=df, fill=GOLD)
-    dw = d.textlength(domain, font=df)
-    d.text((x + dw + 20, y + 17), "·", font=nf, fill=MUTED)
-    d.text((x + dw + 42, y + 17), note, font=nf, fill=(203, 213, 225))
+# ===========================================================================
+#  ŞABLON: duo — sol duotone foto, sağ lacivert kolon
+# ===========================================================================
+def _t_duo(photo, headline, benefit, emph):
+    base = Image.new("RGBA", (S, S), NAVY + (255,))
+    cut = int(S * 0.52)
+    base.paste(_duotone(_cover(photo, cut, S, focus=0.24)), (0, 0))
+    d = ImageDraw.Draw(base)
+    d.rectangle([cut, 0, cut + 4, S], fill=GOLD)
+
+    ov = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    od = ImageDraw.Draw(ov)
+    od.arc([cut + S * 0.18, S * 0.66, cut + S * 0.9, S * 1.38], 180, 320, fill=GOLD + (44,), width=3)
+    base.alpha_composite(ov)
+    d = ImageDraw.Draw(base)
+
+    x = cut + 56
+    maxw = S - x - M
+    sz, lines = _mixed_wrap(d, headline, emph, 96, maxw, 4)
+    bf, bl = _fit_plain(d, benefit, 30, maxw, 3)
+    head_h = int(_lh(F_DISPLAY(sz)) * 1.05) * len(lines)
+    ben_h = (_lh(bf) + 8) * len(bl)
+    total = head_h + 26 + ben_h
+    y = (S - total) // 2 - 6
+
+    d.line([x, y - 24, x + 96, y - 24], fill=GOLD, width=5)
+    y = _draw_mixed(d, lines, sz, x, y)
+    y += 20
+    for ln in bl:
+        d.text((x, y), ln, font=bf, fill=(203, 213, 225))
+        y += _lh(bf) + 8
+    _footer(d, S - M - 32, x=x)
+    _brand(base, x, M - 18)
+    return base.convert("RGB")
 
 
-# ---- metin yardımcıları ----
-def _fit(d, text, size, max_w, max_lines, bold):
-    text = " ".join((text or "").split())
-    if not text:
-        return _font(size, bold), []
-    for s in range(size, max(16, int(size * 0.55)) - 1, -2):
-        f = _font(s, bold)
-        lines = _wrap(d, text, f, max_w)
-        if len(lines) <= max_lines:
-            return f, lines
-    f = _font(max(16, int(size * 0.55)), bold)
-    lines = _wrap(d, text, f, max_w)[:max_lines]
-    if lines:
-        lines[-1] = lines[-1].rstrip(" ,.;:") + "…"
-    return f, lines
+# ===========================================================================
+#  ŞABLON: stat — somut poetry: vurgu kelime DEV, gerisi fısıltı
+# ===========================================================================
+def _t_stat(photo, headline, benefit, emph):
+    base = Image.new("RGBA", (S, S), NAVY + (255,))
+    ov = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    _court_lines(ImageDraw.Draw(ov), alpha=50)
+    base.alpha_composite(ov)
+    d = ImageDraw.Draw(base)
+    d.rectangle([M - 26, M - 26, S - M + 26, S - M + 26], outline=NAVY_SOFT, width=2)
+
+    # kelime sırası KORUNUR: vurgu-öncesi üstte, DEV vurgu ortada, kalanı altta
+    words = headline.split()
+    idx = next((i for i, w in enumerate(words) if emph and emph.lower() in w.lower()),
+               len(words) - 1)
+    big = words[idx]
+    before = " ".join(words[:idx])
+    after = " ".join(words[idx + 1:])
+
+    bsz = 300
+    while d.textlength(big, font=F_ACCENT(bsz)) > S - 2 * M and bsz > 90:
+        bsz -= 10
+    bf_big = F_ACCENT(bsz)
+    bw = d.textlength(big, font=bf_big)
+    bh = _lh(bf_big)
+    by = (S - bh) // 2 - 40
+
+    sf = F_DISPLAY(64)
+    if before:
+        d.text(((S - d.textlength(before, font=sf)) / 2, by - _lh(sf) - 6), before, font=sf, fill=PAPER)
+    d.text(((S - bw) / 2, by), big, font=bf_big, fill=GOLD)
+    yy = by + bh + 4
+    if after:
+        d.text(((S - d.textlength(after, font=sf)) / 2, yy), after, font=sf, fill=PAPER)
+        yy += _lh(sf) + 10
+
+    bff, bbl = _fit_plain(d, benefit, 31, S - 2 * M - 100, 2)
+    yy += 24
+    for ln in bbl:
+        d.text(((S - d.textlength(ln, font=bff)) / 2, yy), ln, font=bff, fill=(203, 213, 225))
+        yy += _lh(bff) + 8
+
+    nf = F_TEXT(24, True)
+    d.text((M, M - 6), "No. " + hashlib.sha1(headline.encode()).hexdigest()[:2].upper(),
+           font=nf, fill=MUTED)
+    _footer(d, S - M - 30, center=True)
+    _brand(base, S - M - 74 - 16 - int(d.textlength("kulups", font=F_TEXT(34, True))), M - 22)
+    return base.convert("RGB")
 
 
-def _wrap(d, text, font, max_w):
-    words, lines, cur = text.split(), [], ""
-    for w in words:
-        t = f"{cur} {w}".strip()
-        if d.textlength(t, font=font) <= max_w or not cur:
-            cur = t
-        else:
-            lines.append(cur)
-            cur = w
-    if cur:
-        lines.append(cur)
-    return lines
+_RENDER = {"poster": _t_poster, "court": _t_court, "duo": _t_duo, "stat": _t_stat}
 
 
-def _lh(font) -> int:
-    try:
-        a, dd = font.getmetrics()
-        return a + dd
-    except Exception:
-        return getattr(font, "size", 20) + 6
+# ===========================================================================
+#  Genel API
+# ===========================================================================
+def compose(concept: dict, *, pillar: str = "", template: str | None = None,
+            exclude_templates: set | None = None,
+            exclude_photos: set | None = None) -> tuple[bytes, str, str]:
+    """concept+pillar → (jpeg, şablon, foto). Kart metni KÜRATÖRLÜ havuzdan."""
+    seed = concept.get("konsept_basligi") or concept.get("kart_baslik") or "kulups"
+    rnd = random.Random(hashlib.sha1(seed.encode("utf-8")).hexdigest())
+
+    pool = POOL.get(pillar) or [p for v in POOL.values() for p in v]
+    headline, benefit, emph = pool[rnd.randrange(len(pool))]
+
+    tpls = [t for t in TEMPLATES if t not in (exclude_templates or set())] or list(TEMPLATES)
+    tpl = template if template in TEMPLATES else tpls[rnd.randrange(len(tpls))]
+
+    photo_name, photo = _pick_photo(pillar, rnd, exclude_photos or set())
+    img = _RENDER[tpl](photo, headline, benefit, emph)
+
+    buf = io.BytesIO()
+    img.save(buf, "JPEG", quality=92, optimize=True)
+    log.info("kart hazır: şablon=%s foto=%s başlık=%r", tpl, photo_name, headline)
+    return buf.getvalue(), tpl, photo_name
 
 
-_FONTS = {
-    True: ["/System/Library/Fonts/Supplemental/Arial Bold.ttf",
-           "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-           "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"],
-    False: ["/System/Library/Fonts/Supplemental/Arial.ttf",
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-            "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf"],
-}
-
-
-def _font(size: int, bold: bool = False):
-    for p in _FONTS[bool(bold)]:
-        try:
-            return ImageFont.truetype(p, size)
-        except Exception:
-            continue
-    return ImageFont.load_default()
+def _pick_photo(pillar, rnd, exclude):
+    files = {p.stem: p for p in sorted(PHOTO_DIR.glob("*.jpg"))}
+    if not files:
+        raise FileNotFoundError(f"stok fotoğraf yok: {PHOTO_DIR}")
+    prefer = [n for n in PILLAR_PHOTOS.get(pillar, []) if n in files and n not in exclude]
+    cands = prefer or [n for n in files if n not in exclude] or list(files)
+    name = cands[rnd.randrange(len(cands))]
+    return name, Image.open(files[name]).convert("RGB")

@@ -34,7 +34,7 @@ PREVIEW_DIR = ROOT / "preview"
 OUTPUT_DIR = ROOT / "output"
 
 
-def run_once(dry_run: bool = True, queue: bool = False) -> dict:
+def run_once(dry_run: bool = True, queue: bool = False, exclude: tuple | None = None) -> dict:
     """Tek bir gönderi üretir. Sonuç özetini (dict) döndürür."""
     settings = config.settings()
     pillars_cfg = config.pillars()
@@ -65,7 +65,10 @@ def run_once(dry_run: bool = True, queue: bool = False) -> dict:
     post_id = state.record_post(pillar=pillar_key, title=title, status="draft")
 
     try:
-        image_bytes, provider = compose(concept)
+        ex_t, ex_p = exclude if exclude else (set(), set())
+        image_bytes, provider, photo = compose(
+            concept, pillar=pillar_key, exclude_templates=ex_t, exclude_photos=ex_p)
+        ex_t.add(provider); ex_p.add(photo)
         cap = build_caption(concept)
         filename = _filename(pillar_key, title)
 
@@ -90,7 +93,7 @@ def run_once(dry_run: bool = True, queue: bool = False) -> dict:
         # Başarı → sütun rotasyonunu ilerlet
         state.mark_pillar_used(pillar_key)
         summary = {"status": "queued" if queue else ("dry-run" if dry_run else "published"),
-                   "pillar": pillar_key, "title": title, "provider": provider, **result}
+                   "pillar": pillar_key, "title": title, "provider": provider, "photo": photo, **result}
         log.info("TAMAM: %s", summary)
         return summary
 
@@ -101,12 +104,13 @@ def run_once(dry_run: bool = True, queue: bool = False) -> dict:
 
 
 def run(count: int = 1, dry_run: bool = True, queue: bool = False) -> list[dict]:
+    exclude = (set(), set())   # parti içinde şablon + fotoğraf tekrarını engelle
     """N gönderi üretir. Hata olursa kalanları denemeyi sürdürür."""
     results = []
     for i in range(count):
         log.info("=== gönderi %d/%d ===", i + 1, count)
         try:
-            results.append(run_once(dry_run=dry_run, queue=queue))
+            results.append(run_once(dry_run=dry_run, queue=queue, exclude=exclude))
         except Exception as exc:
             results.append({"status": "failed", "error": str(exc)})
     return results
