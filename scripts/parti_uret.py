@@ -109,30 +109,127 @@ kulups.com""",
 ]
 
 
+# ---------------------------------------------------------------------------
+#  PARTİ — Kulups Athletic (telefon kamerasıyla atletik test)
+#  ⚠️ İDDİA DENETİMİ: dikey sıçrama ve uzun atlama kamerası PARK EDİLDİ
+#  (katalogda gelistirme:true) — bu partide kameralı sıçrama VAAT EDİLMEZ.
+#  Kamerayla gerçekten ölçülen 10 test: 20 m · 10 m · 5-10-5 · T-testi ·
+#  şınav · mekik · squat · plank · tek ayak denge · öne uzanma.
+# ---------------------------------------------------------------------------
+ATL = {"domain": "athletic.kulups.com", "urun": "athletic"}
+
+PARTI_ATLETIK = [
+    dict(
+        tpl="telefon", pillar="B", photo=None, slug="kronometreyi-cebine-koy",
+        icerik=dict(
+            headline="Kronometreyi cebine koy", emph="cebine",
+            benefit="Kapıyı ekranda çiz, sporcu geçsin; süreyi kamera okusun.",
+            extra=dict(ATL, kick="telefon kamerasıyla",
+                       ekran={"test": "20 m sürat", "val": "3,42",
+                              "unit": "sn", "alt": "Kapı geçildi"})),
+        caption="""Kronometreyle sürat ölçmenin sorunu insan tepkisi.
+
+Düdük ile parmak arasında birkaç yüzde birlik saniye var. 20 metre koşusunda bu fark, sporcunun bir sezonda kazandığı gelişimden büyük olabiliyor. Aynı koşuyu iki antrenör ölçse iki farklı süre çıkar.
+
+Kulups Athletic'te telefonu bitiş çizgisine koyuyorsun, kapıyı ekranda parmağınla yerine sürüklüyorsun. Sporcu geçtiği anda süre duruyor — geçiş kareler arasından hesaplanıyor, tepki payı diye bir şey kalmıyor.
+
+20 m, 10 m, 5-10-5 ve T-testi böyle ölçülüyor. Kronometre de duruyor; isteyen onu kullanır.
+
+athletic.kulups.com""",
+        tags=["atletiktest", "surattesti", "antrenor", "sporcugelisimi", "kondisyon"],
+    ),
+    dict(
+        tpl="karsi", pillar="B", photo=None, slug="surat-olcumu-once-sonra",
+        icerik=dict(
+            headline="Sürat ölçümü", emph="", benefit="",
+            extra=dict(ATL,
+                       once=["Düdük ile parmak arasında gecikme",
+                             "Kim ne zaman bastı tartışması",
+                             "Aynı koşu, iki farklı süre"],
+                       sonra=["Bitiş kapısını kamera okuyor",
+                              "Geçiş anı kareler arasından",
+                              "Aynı koşu, tek sonuç"])),
+        caption="""Ölçüm güvenilir değilse gelişim de güvenilir değildir.
+
+Sporcunun 20 metresi 3,55'ten 3,42'ye indi diyelim. Bu gerçek bir gelişim mi, yoksa kronometreye bu sefer daha erken mi basıldı? Ayıramıyorsan o veri işe yaramaz — grafiği çizersin ama neyi ölçtüğünü bilemezsin.
+
+Kamera her seferinde aynı şeyi ölçer: gövde kapıyı ne zaman geçti. Ölçen kişi değişse de sonuç değişmez. Gelişim grafiği ancak o zaman bir şey anlatır.
+
+athletic.kulups.com""",
+        tags=["atletiktest", "olcum", "sporcugelisimi", "antrenorluk", "veri"],
+    ),
+    dict(
+        tpl="liste", pillar="B", photo=None, slug="kamerayla-olculen-testler",
+        icerik=dict(
+            headline="Kamerayla ölçülen testler", emph="Kamerayla",
+            benefit="",
+            extra=dict(ATL, kick="Atletik test",
+                       items=["20 m sürat · 10 m ilk adım",
+                              "5-10-5 çeviklik · T-testi",
+                              "Şınav · mekik · squat tekrarı",
+                              "Plank süresi",
+                              "Tek ayak denge · öne uzanma"])),
+        caption="""Telefonun kamerasıyla ölçülen testler 📱
+
+· 20 m sürat ve 10 m ilk adım
+· 5-10-5 çeviklik ve T-testi
+· Şınav, mekik, squat — sayan da telefon, geçerli tekrarı ayıran da
+· Plank süresi
+· Tek ayak denge ve öne uzanma
+
+Hiçbiri zorunlu değil: her testte elle giriş açık. Mezuran ve kronometren varsa sayıyı yazıp geçersin, sonuç yine aynı yere düşer — sporcunun gelişim grafiğine.
+
+athletic.kulups.com""",
+        tags=["atletiktest", "kondisyon", "antrenmanplani", "sporcugelisimi", "olcum"],
+    ),
+    dict(
+        tpl="rakam", pillar="B", photo=None, slug="video-cihazda-kalir",
+        icerik=dict(
+            headline="Video cihazda kalır", emph="kalır",
+            benefit="Ölçüm cihazın içinde yapılır; kaydedilen tek şey sonuçtaki sayıdır.",
+            extra=dict(ATL, num="0", unit="YÜKLEME")),
+        caption="""Çocukların videosu hiçbir yere gitmiyor.
+
+Bir uygulamaya çocuk videosu çektirmek ciddi bir sorumluluk. Biz o sorumluluğu almamayı seçtik: görüntü işleme tamamen telefonun içinde çalışıyor. Sunucuya giden tek şey ortaya çıkan sayı — 3,42 saniye, 24 tekrar, 41 saniye plank.
+
+Saklanmayan veri sızmaz. En güvenli video, hiç yüklenmeyen videodur.
+
+athletic.kulups.com""",
+        tags=["kvkk", "veriguvenligi", "atletiktest", "sporcugelisimi", "cocukbasketbol"],
+    ),
+]
+
+PARTILER = {"eylul": PARTI, "athletic": PARTI_ATLETIK}
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--queue", action="store_true", help="onay kuyruğuna gönder")
+    ap.add_argument("--parti", default="eylul", choices=sorted(PARTILER),
+                    help="hangi parti üretilsin")
     args = ap.parse_args()
+    parti = PARTILER[args.parti]
 
     prev = ROOT / "preview" / "parti"
     prev.mkdir(parents=True, exist_ok=True)
     stamp = time.strftime("%Y%m%d-%H%M%S", time.gmtime())
 
     hazir = []
-    for i, item in enumerate(PARTI, 1):
+    for i, item in enumerate(parti, 1):
         img, tpl, photo = compose({"konsept_basligi": item["slug"]},
                                   pillar=item["pillar"], template=item["tpl"],
-                                  pick=item["pick"], photo_name=item.get("photo"))
+                                  pick=item.get("pick"), photo_name=item.get("photo"),
+                                  icerik=item.get("icerik"))
         cap = build_caption({"caption_metin": item["caption"],
                              "hashtag_onerileri": item["tags"]})
         fn = f"{stamp}-{i}_{item['pillar']}_{_slug(item['slug'])}.jpg"
         (prev / fn).write_bytes(img)
         (prev / (fn[:-4] + ".txt")).write_text(cap, encoding="utf-8")
         hazir.append((item, fn, img, cap, tpl, photo))
-        log.info("%d/%d hazır: %s (%s, foto=%s)", i, len(PARTI), fn, tpl, photo or "—")
+        log.info("%d/%d hazır: %s (%s, foto=%s)", i, len(parti), fn, tpl, photo or "—")
 
     if not args.queue:
-        print(f"\n{len(PARTI)} gönderi önizlemede → {prev}")
+        print(f"\n{len(parti)} gönderi önizlemede → {prev}")
         return
 
     # 1) görselleri output/'a yaz (URL'ler buradan doğar)
