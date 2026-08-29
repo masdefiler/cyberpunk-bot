@@ -79,7 +79,7 @@ kulups.com""",
 Basketbol, futbol ve voleybol sahaları hazır. Kurduğun oyunu kaydedip takımına gönderebilir, antrenmanda ekrandan oynatabilirsin.
 
 Antrenör arkadaşını etiketle, işine yarar.
-kulups.com/taktik-tahtasi""",
+board.kulups.com""",
         tags=["taktiktahtasi", "antrenor", "basketbolantrenoru", "oyunkurma", "ucretsiz"],
     ),
     dict(
