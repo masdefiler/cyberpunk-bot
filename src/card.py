@@ -44,7 +44,8 @@ INK = (15, 23, 42)              # açık zeminde metin = lacivert
 MUTED_D = (100, 116, 139)       # açık zeminde ikincil metin
 
 TEMPLATES = ("poster", "court", "duo", "stat", "sistem",
-             "isik", "parlak", "kutlama", "an")
+             "isik", "parlak", "kutlama", "an",
+             "sezon", "karsi", "rakam", "liste")
 LIGHT_TPLS = {"isik", "parlak", "kutlama", "an"}
 
 # ---------------------------------------------------------------------------
@@ -606,7 +607,7 @@ def _t_parlak(photo, headline, benefit, emph):
         d.text((M, y), ln, font=bf, fill=MUTED_D)
         y += _lh(bf) + 8
     _footer(d, foot_y, dark=False)
-    _brand(base, M, M - 18, dark_bg=False)
+    _brand_pill(base, M, M - 22)
     return base.convert("RGB")
 
 
@@ -629,7 +630,7 @@ def _t_kutlama(photo, headline, benefit, emph):
         d.text((x, y), ln, font=bf, fill=MUTED_D)
         y += _lh(bf) + 8
     _footer(d, S - M - 24, x=x, dark=False)
-    _brand(base, M, M - 26, dark_bg=False)
+    _brand_pill(base, M, M - 30)
     return base.convert("RGB")
 
 
@@ -641,7 +642,21 @@ def _t_an(photo, headline, benefit, emph):
     _court_motif_col(ImageDraw.Draw(ov), S * 0.3, S * 0.5, cu, NAVY, alpha=20, stroke=2)
     base.alpha_composite(ov)
 
-    pw, phh = 470, 520
+    d = ImageDraw.Draw(base)
+    maxw = S - 2 * M
+    sz, lines = _mixed_wrap(d, headline, emph, 88, maxw, 2)
+    bf, bl = _fit_plain(d, benefit, 29, maxw - 80, 2)
+
+    # önce metin bloğunu alta yerleştir, polaroid KALAN yüksekliğe ölçeklensin
+    foot_y = S - M - 22
+    head_h = int(_lh(F_DISPLAY(sz)) * 1.04) * len(lines)
+    ben_h = (_lh(bf) + 7) * len(bl)
+    text_y = foot_y - 40 - ben_h - 12 - head_h
+    top = 132
+    box_h = max(300, text_y - 34 - top)
+    phh = int(min(520, box_h))
+    pw = int(phh * 470 / 520)
+
     pol = Image.new("RGBA", (pw, phh), (255, 255, 255, 255))
     pol.paste(_cover(_warm(photo), pw - 44, phh - 110, focus=0.28), (22, 22))
     pol = pol.rotate(-3.4, expand=True, resample=Image.BICUBIC)
@@ -649,28 +664,331 @@ def _t_an(photo, headline, benefit, emph):
     ImageDraw.Draw(sh).rounded_rectangle([10, 16, pol.size[0] - 4, pol.size[1] - 2], 12, fill=(15, 23, 42, 60))
     sh = sh.filter(ImageFilter.GaussianBlur(14))
     px_ = (S - pol.size[0]) // 2
-    base.alpha_composite(sh, (px_, 118))
-    base.alpha_composite(pol, (px_, 104))
+    py_ = int(top + (box_h - pol.size[1]) / 2)
+    base.alpha_composite(sh, (px_, py_ + 14))
+    base.alpha_composite(pol, (px_, py_))
 
     d = ImageDraw.Draw(base)
-    maxw = S - 2 * M
-    sz, lines = _mixed_wrap(d, headline, emph, 88, maxw, 2)
-    bf, bl = _fit_plain(d, benefit, 29, maxw - 80, 2)
-    y = 104 + pol.size[1] + 34
-    y = _draw_mixed(d, lines, sz, 0, y, align="center", width=S, ink=INK)
+    y = _draw_mixed(d, lines, sz, 0, text_y, align="center", width=S, ink=INK)
     y += 12
     for ln in bl:
         d.text(((S - d.textlength(ln, font=bf)) / 2, y), ln, font=bf, fill=MUTED_D)
         y += _lh(bf) + 7
-    _footer(d, S - M - 22, center=True, dark=False)
+    _footer(d, foot_y, center=True, dark=False)
     _brand(base, M, M - 34, dark_bg=False)
+    return base.convert("RGB")
+
+
+# ===========================================================================
+#  v6 — TİPOGRAFİK AİLE: sezon / karsi / rakam / liste
+#  Fotoğraf kullanmaz; feed'de fotoğraflı kartların arasına "nefes" koyar.
+# ===========================================================================
+NOPHOTO_TPLS = {"sezon", "karsi", "rakam", "liste"}
+
+
+def _ust(s: str) -> str:
+    """Türkçe büyütme — Python'un upper()'ı 'i'yi 'I' yapar, doğrusu 'İ'."""
+    return s.replace("i", "İ").replace("ı", "I").upper()
+
+
+def _check(d, cx, cy, r, col, w=5):
+    """✓ glifi hiçbir fontta YOK → tik'i çizgiyle çiziyoruz."""
+    d.line([(cx - r * 0.42, cy + r * 0.02), (cx - r * 0.10, cy + r * 0.36),
+            (cx + r * 0.46, cy - r * 0.40)], fill=col, width=w, joint="curve")
+
+
+def _cross(d, cx, cy, r, col, w=5):
+    d.line([(cx - r * 0.34, cy - r * 0.34), (cx + r * 0.34, cy + r * 0.34)], fill=col, width=w)
+    d.line([(cx - r * 0.34, cy + r * 0.34), (cx + r * 0.34, cy - r * 0.34)], fill=col, width=w)
+
+
+def _brand_pill(base: Image.Image, x: int, y: int, *, chip: int = 68):
+    """Fotoğraf üstünde okunaklı marka kilidi: tüm lockup beyaz hapta."""
+    d = ImageDraw.Draw(base)
+    wf = F_TEXT(31, bold=True)
+    tw = d.textlength("kulups", font=wf)
+    pad = 14
+    w = pad + chip + 13 + tw + 26
+    h = chip + 2 * pad
+    d.rounded_rectangle([x, y, x + w, y + h], radius=h // 2, fill=(255, 255, 255))
+    if LOGO_PATH.exists():
+        lg = Image.open(LOGO_PATH).convert("RGBA")
+        k = int(chip * 0.94)
+        r = k / max(lg.size)
+        lg = lg.resize((max(1, int(lg.width * r)), max(1, int(lg.height * r))), Image.LANCZOS)
+        base.alpha_composite(lg, (int(x + pad + (chip - lg.width) / 2), int(y + pad + (chip - lg.height) / 2)))
+    d = ImageDraw.Draw(base)
+    d.text((x + pad + chip + 13, y + (h - _lh(wf)) / 2), "kulups", font=wf, fill=INK)
+
+
+def _kicker(d, text, y, *, center=True, x=M, col=None, size=26, track=4):
+    """Harf aralığı açılmış küçük etiket (ALL CAPS)."""
+    f = F_TEXT(size, True)
+    t = _ust(text)
+    w = sum(d.textlength(c, font=f) for c in t) + track * (len(t) - 1)
+    cx = (S - w) / 2 if center else x
+    for c in t:
+        d.text((cx, y), c, font=f, fill=col or MUTED)
+        cx += d.textlength(c, font=f) + track
+    return w
+
+
+# --- v6 metin havuzları -----------------------------------------------------
+SEZON: list[tuple[str, str, str, list[str]]] = [
+    ("Yeni sezon burada başlar",
+     "Kayıt, kadro ve aidat planı daha ilk hafta otursun.", "başlar",
+     ["Sporcu kaydı", "Kadro kurulumu", "Aidat planı"]),
+    ("Sezona dağınık başlama",
+     "Defter, Excel ve gruplar yerine tek panel — kurulumu biz yapıyoruz.", "dağınık",
+     ["Yoklama", "Takvim", "Tahsilat"]),
+    ("Eylülde işin kolay olsun",
+     "Yeni sporcular, yeni gruplar, yeni takvim: hepsi bir akşamda hazır.", "kolay",
+     ["Veli portalı", "Evrak arşivi", "Duyuru"]),
+]
+
+KARSI: list[tuple[str, list[str], list[str]]] = [
+    ("Kulüp yönetimi",
+     ["Yoklama defteri ve kayıp sayfalar",
+      "Excel'de tutulan aidat listesi",
+      "Dört ayrı WhatsApp grubu"],
+     ["Yoklama tek dokunuşla işlenir",
+      "Aidat durumu her an güncel",
+      "Duyuru herkese aynı anda gider"]),
+    ("Aidat takibi",
+     ["Kim ödedi, kim ödemedi belirsiz",
+      "Elden nakit, kaybolan makbuz",
+      "Ay sonu hesap kâbusu"],
+     ["Ödeyen–ödemeyen tek ekranda",
+      "Kartla ödeme, kayıt otomatik",
+      "Makbuz anında velinin telefonunda"]),
+]
+
+RAKAM: list[tuple[str, str, str, str, str]] = [
+    ("14", "GÜN", "Ücretsiz deneyin", "Kart bilgisi istemeden bütün özellikler açık.", "Ücretsiz"),
+    ("0", "₺", "Taktik tahtası bedava", "Üyelik yok, sınır yok: çiz, oynat, yazdır.", "bedava"),
+    ("1", "PANEL", "Kulübün tamamı burada", "Yoklama, aidat, takvim, veli iletişimi ve evrak.", "tamamı"),
+]
+
+LISTE: list[tuple[str, str, str, list[str]]] = [
+    ("Sezon hazırlığı", "Sezon başlamadan beş iş", "beş",
+     ["Kadroları ve grupları oluştur",
+      "Veli iletişim bilgilerini topla",
+      "Aidat tutarını ve gününü belirle",
+      "Antrenman takvimini yayınla",
+      "Lisans evraklarını dijitale taşı"]),
+    ("İlk hafta", "Kulüp açılış kontrol listesi", "kontrol",
+     ["Sporcu kayıtları girildi",
+      "Antrenörler gruplara atandı",
+      "Takvim velilere gönderildi",
+      "Aidat planı tanımlandı",
+      "Evraklar arşive yüklendi"]),
+]
+
+
+# ===========================================================================
+#  ŞABLON: sezon — lacivert, dev başlık, altın alt bant (feed'de yeni bir ses)
+# ===========================================================================
+def _t_sezon(photo, headline, benefit, emph, extra=None):
+    chips = (extra or {}).get("chips", [])
+    base = Image.new("RGBA", (S, S), NAVY + (255,))
+    cu = S * 0.0106
+    _court_bg(base, u=cu, ox=(S - 100 * cu) / 2, oy=S * 0.085, alpha=26, stroke=3)
+    d = ImageDraw.Draw(base)
+
+    bar_h = 112
+    maxw = S - 2 * M
+    sz, lines = _mixed_wrap(d, headline, emph, 126, maxw, 3)
+    bf, bl = _fit_plain(d, benefit, 32, maxw - 60, 2)
+
+    # blok altın banttan yukarı doğru kurulur → hiçbir hâlde boşlukta yüzmez
+    head_h = int(_lh(F_DISPLAY(sz)) * 1.04) * len(lines)
+    ben_h = (_lh(bf) + 9) * len(bl)
+    chip_h = 66 if chips else 0
+    y = S - bar_h - 74 - chip_h - (34 if chips else 0) - ben_h - 22 - head_h
+    _kicker(d, "2026 · 2027 sezonu", y - 62, center=False, x=M, col=GOLD, size=27, track=6)
+    d.line([M, y - 80, M + 96, y - 80], fill=GOLD, width=5)
+    y = _draw_mixed(d, lines, sz, M, y)
+    y += 22
+    for ln in bl:
+        d.text((M, y), ln, font=bf, fill=(203, 213, 225))
+        y += _lh(bf) + 9
+
+    # rozet sırası
+    y += 34
+    cf = F_TEXT(27, True)
+    cx = M
+    for c in chips:
+        w = d.textlength(c, font=cf) + 52
+        h = 66
+        if cx + w > S - M:
+            break
+        d.rounded_rectangle([cx, y, cx + w, y + h], radius=h // 2,
+                            outline=(71, 85, 105), width=2)
+        d.ellipse([cx + 22, y + h / 2 - 5, cx + 32, y + h / 2 + 5], fill=GOLD)
+        d.text((cx + 42, y + (h - _lh(cf)) / 2), c, font=cf, fill=PAPER)
+        cx += w + 14
+
+    # altın alt bant
+    d.rectangle([0, S - bar_h, S, S], fill=GOLD)
+    f1, f2 = F_TEXT(31, True), F_TEXT(29)
+    t1, t2 = "kulups.com", "14 gün ücretsiz"
+    w = d.textlength(t1, font=f1) + 30 + d.textlength(t2, font=f2)
+    bx = (S - w) / 2
+    by = S - bar_h + (bar_h - _lh(f1)) / 2
+    d.text((bx, by), t1, font=f1, fill=NAVY)
+    ccx = bx + d.textlength(t1, font=f1) + 12
+    d.ellipse([ccx, by + 15, ccx + 6, by + 21], fill=(120, 95, 40))
+    d.text((ccx + 18, by + 1), t2, font=f2, fill=(92, 72, 28))
+    _brand(base, M, M - 18)
+    return base.convert("RGB")
+
+
+# ===========================================================================
+#  ŞABLON: karsi — üstte "ÖNCE" (kâğıt), altta "SONRA" (lacivert)
+# ===========================================================================
+def _t_karsi(photo, headline, benefit, emph, extra=None):
+    once = (extra or {}).get("once", [])
+    sonra = (extra or {}).get("sonra", [])
+    cut = int(S * 0.50)
+    base = Image.new("RGBA", (S, S), LIGHT_BG + (255,))
+    d = ImageDraw.Draw(base)
+    d.rectangle([0, cut, S, S], fill=NAVY)
+    d.rectangle([0, cut - 5, S, cut], fill=GOLD)
+
+    # başlık (kicker) — sağ üstte, markanın karşısında
+    kf = F_TEXT(26, True)
+    d.text((S - M - d.textlength(_ust(headline), font=kf), M + 4),
+           _ust(headline), font=kf, fill=MUTED_D)
+
+    def etiket(text, y, *, fill, ink, ol=None):
+        f = F_TEXT(27, True)
+        t = _ust(text)
+        w = d.textlength(t, font=f) + 54
+        h = 58
+        d.rounded_rectangle([M, y, M + w, y + h], radius=h // 2, fill=fill,
+                            outline=ol, width=2 if ol else 0)
+        d.text((M + 27, y + (h - _lh(f)) / 2), t, font=f, fill=ink)
+        return y + h
+
+    def satirlar(items, y, *, ink, mark, mcol, ring):
+        f = F_TEXT(33)
+        for it in items:
+            r = 20
+            cx, cy = M + r, y + 22
+            d.ellipse([cx - r, cy - r, cx + r, cy + r], outline=ring, width=3,
+                      fill=(GOLD if mark == "check" else None))
+            (_check if mark == "check" else _cross)(d, cx, cy, r, mcol, 5)
+            _f, _l = _fit_plain(d, it, 33, S - (M + 2 * r + 26) - M, 1)
+            d.text((M + 2 * r + 26, y + 22 - _lh(_f) / 2 + 1), _l[0], font=_f, fill=ink)
+            y += 78
+        return y
+
+    y = etiket("önce", 196, fill=None, ink=MUTED_D, ol=(203, 213, 225))
+    satirlar(once, y + 30, ink=(71, 85, 105), mark="cross", mcol=(148, 163, 184),
+             ring=(214, 220, 230))
+
+    y = etiket("sonra", cut + 52, fill=GOLD, ink=NAVY)
+    satirlar(sonra, y + 30, ink=PAPER, mark="check", mcol=NAVY, ring=GOLD)
+
+    _footer(d, S - M - 18)
+    _brand(base, M, M - 18, dark_bg=False)
+    return base.convert("RGB")
+
+
+# ===========================================================================
+#  ŞABLON: rakam — tek dev sayı; scroll'u durduran en sade kart
+# ===========================================================================
+def _t_rakam(photo, headline, benefit, emph, extra=None):
+    num = (extra or {}).get("num", "14")
+    unit = (extra or {}).get("unit", "GÜN")
+    base = Image.new("RGBA", (S, S), NAVY + (255,))
+    cu = S * 0.0105
+    _court_bg(base, u=cu, ox=(S - 100 * cu) / 2, oy=S * 0.63, alpha=17, stroke=2)
+    d = ImageDraw.Draw(base)
+
+    cy = 404
+    # sayı TAM ORTADA; çember de onun merkezine oturur (birim sağda asılı durur)
+    nf = F_DISPLAY(430)
+    nb = d.textbbox((0, 0), num, font=nf)
+    nw, nh = nb[2] - nb[0], nb[3] - nb[1]
+    nx = (S - nw) / 2
+
+    ring = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    R = int(max(nh * 0.66, 250))
+    ImageDraw.Draw(ring).ellipse([S / 2 - R, cy - R, S / 2 + R, cy + R],
+                                 outline=GOLD + (70,), width=4)
+    base.alpha_composite(ring)
+    d = ImageDraw.Draw(base)
+    d.text((nx - nb[0], cy - nh / 2 - nb[1]), num, font=nf, fill=GOLD)
+
+    if unit:
+        # tek karakterlik birim (₺) iri Work Sans ile — BigShoulders ₺ tuhaf duruyor
+        uf = F_TEXT(160, True) if len(unit) <= 2 else F_TEXT(46, True)
+        ub = d.textbbox((0, 0), unit, font=uf)
+        d.text((nx + nw + 24 - ub[0], cy + nh / 2 - (ub[3] - ub[1]) - ub[1]),
+               unit, font=uf, fill=PAPER)
+
+    maxw = S - 2 * M
+    sz, lines = _mixed_wrap(d, headline, emph, 96, maxw, 2)
+    bf, bl = _fit_plain(d, benefit, 32, maxw - 90, 2)
+    y = 726
+    y = _draw_mixed(d, lines, sz, 0, y, align="center", width=S)
+    y += 18
+    for ln in bl:
+        d.text(((S - d.textlength(ln, font=bf)) / 2, y), ln, font=bf, fill=(203, 213, 225))
+        y += _lh(bf) + 8
+    _footer(d, S - M - 24, center=True)
+    _brand(base, M, M - 26)
+    return base.convert("RGB")
+
+
+# ===========================================================================
+#  ŞABLON: liste — kaydedilesi kontrol listesi (reklam değil, işe yarar içerik)
+# ===========================================================================
+def _t_liste(photo, headline, benefit, emph, extra=None):
+    items = (extra or {}).get("items", [])
+    kick = (extra or {}).get("kick", "Sezon hazırlığı")
+    base = Image.new("RGBA", (S, S), LIGHT_BG + (255,))
+    cu = S * 0.0104
+    ov = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+    _court_motif_col(ImageDraw.Draw(ov), (S - 100 * cu) / 2, S * 0.30, cu, NAVY, alpha=11, stroke=2)
+    base.alpha_composite(ov)
+    d = ImageDraw.Draw(base)
+
+    _kicker(d, kick, 214, center=False, x=M, col=BLUE, size=26, track=5)
+    maxw = S - 2 * M
+    sz, lines = _mixed_wrap(d, headline, emph, 92, maxw, 2)
+    y = _draw_mixed(d, lines, sz, M, 258, ink=INK)
+
+    # satırlar kalan yüksekliğe göre ölçülür → footer'a ASLA girmez
+    foot_y = S - M - 6
+    y += 30
+    n = max(1, len(items[:5]))
+    gap = 13
+    avail = (foot_y - 34) - y
+    rh = int(max(62, min(86, (avail - gap * (n - 1)) / n)))
+    for i, it in enumerate(items[:5]):
+        d.rounded_rectangle([M, y, S - M, y + rh], radius=16, fill=(255, 255, 255),
+                            outline=(224, 230, 238), width=2)
+        r = int(min(19, rh * 0.24))
+        cx, cy = M + 34 + r, y + rh / 2
+        d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=GOLD)
+        _check(d, cx, cy, r, (255, 255, 255), 5)
+        _f, _l = _fit_plain(d, it, 31, S - 2 * M - (34 + 2 * r + 26) - 30, 1)
+        d.text((cx + r + 26, cy - _lh(_f) / 2 + 1), _l[0], font=_f, fill=INK)
+        y += rh + gap
+
+    _footer(d, foot_y, x=M, dark=False)
+    _brand(base, M, M - 26, dark_bg=False)
     return base.convert("RGB")
 
 
 _RENDER = {"poster": _t_poster, "court": _t_court, "duo": _t_duo,
            "stat": _t_stat, "sistem": _t_sistem,
            "isik": _t_isik, "parlak": _t_parlak,
-           "kutlama": _t_kutlama, "an": _t_an}
+           "kutlama": _t_kutlama, "an": _t_an,
+           "sezon": _t_sezon, "karsi": _t_karsi,
+           "rakam": _t_rakam, "liste": _t_liste}
 
 
 # ===========================================================================
@@ -678,7 +996,8 @@ _RENDER = {"poster": _t_poster, "court": _t_court, "duo": _t_duo,
 # ===========================================================================
 def compose(concept: dict, *, pillar: str = "", template: str | None = None,
             exclude_templates: set | None = None,
-            exclude_photos: set | None = None) -> tuple[bytes, str, str]:
+            exclude_photos: set | None = None,
+            pick: int | None = None, photo_name: str | None = None) -> tuple[bytes, str, str]:
     """concept+pillar → (jpeg, şablon, foto). Kart metni KÜRATÖRLÜ havuzdan."""
     seed = concept.get("konsept_basligi") or concept.get("kart_baslik") or "kulups"
     rnd = random.Random(hashlib.sha1(seed.encode("utf-8")).hexdigest())
@@ -686,19 +1005,40 @@ def compose(concept: dict, *, pillar: str = "", template: str | None = None,
     tpls = [t for t in TEMPLATES if t not in (exclude_templates or set())] or list(TEMPLATES)
     tpl = template if template in TEMPLATES else tpls[rnd.randrange(len(tpls))]
 
-    if tpl == "sistem":
-        pool = GENEL
-    elif tpl in ("kutlama", "an"):
-        pool = MUTLU
+    extra = None
+    if tpl == "sezon":
+        headline, benefit, emph, chips = SEZON[pick % len(SEZON) if pick is not None else rnd.randrange(len(SEZON))]
+        extra = {"chips": chips}
+    elif tpl == "karsi":
+        headline, once, sonra = KARSI[pick % len(KARSI) if pick is not None else rnd.randrange(len(KARSI))]
+        benefit, emph = "", ""
+        extra = {"once": once, "sonra": sonra}
+    elif tpl == "rakam":
+        num, unit, headline, benefit, emph = RAKAM[pick % len(RAKAM) if pick is not None else rnd.randrange(len(RAKAM))]
+        extra = {"num": num, "unit": unit}
+    elif tpl == "liste":
+        kick, headline, emph, items = LISTE[pick % len(LISTE) if pick is not None else rnd.randrange(len(LISTE))]
+        benefit = ""
+        extra = {"kick": kick, "items": items}
     else:
-        pool = POOL.get(pillar) or [p for v in POOL.values() for p in v]
-    headline, benefit, emph = pool[rnd.randrange(len(pool))]
+        if tpl == "sistem":
+            pool = GENEL
+        elif tpl in ("kutlama", "an"):
+            pool = MUTLU
+        else:
+            pool = POOL.get(pillar) or [p for v in POOL.values() for p in v]
+        headline, benefit, emph = pool[pick % len(pool) if pick is not None else rnd.randrange(len(pool))]
 
-    if tpl in LIGHT_TPLS:
+    if tpl in NOPHOTO_TPLS:
+        photo_name, photo = "", None          # tipografik kart — fotoğraf harcamaz
+    elif photo_name:
+        photo = Image.open(PHOTO_DIR / f"{photo_name}.jpg").convert("RGB")
+    elif tpl in LIGHT_TPLS:
         photo_name, photo = _pick_mood_photo(rnd, exclude_photos or set())
     else:
         photo_name, photo = _pick_photo(pillar, rnd, exclude_photos or set())
-    img = _RENDER[tpl](photo, headline, benefit, emph)
+    img = (_RENDER[tpl](photo, headline, benefit, emph, extra) if extra is not None
+           else _RENDER[tpl](photo, headline, benefit, emph))
 
     buf = io.BytesIO()
     img.save(buf, "JPEG", quality=92, optimize=True)
